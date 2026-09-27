@@ -1,0 +1,70 @@
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\TileQuest.exe
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\TileQuest.deps.json
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\TileQuest.runtimeconfig.json
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\TileQuest.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\TileQuest.pdb
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\MonoGame.Framework.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\NVorbis.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\android-arm\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\android-arm64\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\android-x64\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\android-x86\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\ios-arm64\native\libopenal.a
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\iossimulator-arm64\native\libopenal.a
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\iossimulator-x64\native\libopenal.a
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\linux-arm64\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\linux-x64\native\libopenal.so
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\osx\native\libopenal.dylib
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\win-arm64\native\openal.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\win-x64\native\openal.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\linux-arm64\native\libSDL2-2.0.so.0
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\linux-x64\native\libSDL2-2.0.so.0
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\osx\native\libSDL2-2.0.0.dylib
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\win-arm64\native\SDL2.dll
+C:\Users\USER\Desktop\TileQuest\bin\Debug\net8.0\runtimes\win-x64\native\SDL2.dll
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.csproj.AssemblyReference.cache
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.AssemblyInfoInputs.cache
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.AssemblyInfo.cs
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.csproj.CoreCompileInputs.cache
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.csproj.Up2Date
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.dll
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\refint\TileQuest.dll
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.pdb
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\TileQuest.genruntimeconfig.cache
+C:\Users\USER\Desktop\TileQuest\obj\Debug\net8.0\ref\TileQuest.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\TileQuest.exe
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\TileQuest.deps.json
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\TileQuest.runtimeconfig.json
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\TileQuest.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\TileQuest.pdb
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\MonoGame.Framework.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\NVorbis.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\android-arm\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\android-arm64\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\android-x64\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\android-x86\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\ios-arm64\native\libopenal.a
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\iossimulator-arm64\native\libopenal.a
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\iossimulator-x64\native\libopenal.a
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\linux-arm64\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\linux-x64\native\libopenal.so
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\osx\native\libopenal.dylib
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\win-arm64\native\openal.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\win-x64\native\openal.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\linux-arm64\native\libSDL2-2.0.so.0
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\linux-x64\native\libSDL2-2.0.so.0
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\osx\native\libSDL2-2.0.0.dylib
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\win-arm64\native\SDL2.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\runtimes\win-x64\native\SDL2.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.csproj.AssemblyReference.cache
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.AssemblyInfoInputs.cache
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.AssemblyInfo.cs
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.csproj.CoreCompileInputs.cache
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.csproj.Up2Date
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\refint\TileQuest.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.pdb
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\TileQuest.genruntimeconfig.cache
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\Debug\net8.0\ref\TileQuest.dll
