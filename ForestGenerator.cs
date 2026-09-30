@@ -42,13 +42,21 @@ namespace TileQuest
             // bigger map gets proportionally more clusters instead of feeling
             // emptier as it grows.
             int area = width * height;
-            if (treeClusters <= 0) treeClusters = Math.Max(6, area / 90);
-            if (rockClusters <= 0) rockClusters = Math.Max(4, area / 150);
+            if (treeClusters <= 0) treeClusters = Math.Max(6, area / 180);
+            if (rockClusters <= 0) rockClusters = Math.Max(5, area / 200);
             if (tallGrassPatches <= 0) tallGrassPatches = Math.Max(4, area / 120);
 
-            ScatterClusters(tiles, width, height, random, treeClusters, TileType.Tree, maxDepth: 3, spreadChance: 0.55);
-            ScatterClusters(tiles, width, height, random, rockClusters, TileType.Rock, maxDepth: 2, spreadChance: 0.45);
-            ScatterClusters(tiles, width, height, random, tallGrassPatches, TileType.TallGrass, maxDepth: 3, spreadChance: 0.60);
+            // Trees are placed as separate sprites (never overlapping each
+            // other), in loose groves rather than solid blobs.
+            ScatterGroves(tiles, width, height, random, treeClusters);
+
+            // Tree sprites are taller than one tile, so a canopy covers the
+            // tiles above it. Rocks and tall grass are kept out of that area;
+            // otherwise they'd be generated (and collide) but end up hidden
+            // behind a tree.
+            var canopyZone = BuildCanopyZone(tiles);
+            ScatterClusters(tiles, width, height, random, rockClusters, TileType.Rock, maxDepth: 2, spreadChance: 0.45, blocked: canopyZone);
+            ScatterClusters(tiles, width, height, random, tallGrassPatches, TileType.TallGrass, maxDepth: 3, spreadChance: 0.60, blocked: canopyZone);
 
             spawnPoint = FindSpawnPoint(tiles, width, height);
 
@@ -67,21 +75,129 @@ namespace TileQuest
 
         private static void ScatterClusters(
             Dictionary<Point, TileType> tiles, int width, int height, Random random,
-            int clusterCount, TileType entityType, int maxDepth, double spreadChance)
+            int clusterCount, TileType entityType, int maxDepth, double spreadChance,
+            HashSet<Point>? blocked)
         {
             for (int i = 0; i < clusterCount; i++)
             {
-                var seed = RandomGrassTile(tiles, width, height, random);
+                var seed = RandomGrassTile(tiles, width, height, random, blocked);
                 if (seed.HasValue)
                 {
-                    SpreadCluster(tiles, seed.Value, entityType, random, width, height, depth: 0, maxDepth, spreadChance);
+                    SpreadCluster(tiles, seed.Value, entityType, random, width, height, depth: 0, maxDepth, spreadChance, blocked);
                 }
             }
         }
 
+        // --- Tree groves (recursive, with a no-overlap rule) ---------------------
+
+        // A grove grows left, right, up and down from each tree, by a random
+        // distance so it looks scattered rather than planted in rows. The
+        // minimum steps keep sprites from overlapping: neighbours side by side
+        // need 2+ tiles (the sprite is 1.4 tiles wide); straight up/down needs
+        // 4+ because the sprites are tall. SpreadGrove still rejects any spot
+        // that would overlap.
+        private static Point GroveOffset(int branch, Random random)
+        {
+            return branch switch
+            {
+                0 => new Point(-random.Next(2, 4), random.Next(-2, 3)),
+                1 => new Point(random.Next(2, 4), random.Next(-2, 3)),
+                2 => new Point(random.Next(-1, 2), -random.Next(4, 6)),
+                _ => new Point(random.Next(-1, 2), random.Next(4, 6)),
+            };
+        }
+
+        private static void ScatterGroves(
+            Dictionary<Point, TileType> tiles, int width, int height, Random random, int groveCount)
+        {
+            var placedBounds = new List<Rectangle>();
+            for (int i = 0; i < groveCount; i++)
+            {
+                var seed = RandomGrassTile(tiles, width, height, random, blocked: null);
+                if (seed.HasValue)
+                {
+                    SpreadGrove(tiles, seed.Value, random, width, height, depth: 0, maxDepth: 3, spreadChance: 0.75, placedBounds);
+                }
+            }
+        }
+
+        private static void SpreadGrove(
+            Dictionary<Point, TileType> tiles, Point origin, Random random, int width, int height,
+            int depth, int maxDepth, double spreadChance, List<Rectangle> placedBounds)
+        {
+            if (depth > maxDepth)
+            {
+                return; // base case: grove has grown as far as it's allowed to
+            }
+            if (origin.X < 0 || origin.Y < 0 || origin.X >= width || origin.Y >= height)
+            {
+                return; // base case: out of bounds
+            }
+            if (!tiles.TryGetValue(origin, out var current) || current != TileType.Grass)
+            {
+                return; // base case: tile already used
+            }
+
+            // base case: the sprite would overlap another tree, or hang off
+            // the edge of the map.
+            var bounds = DrawTree.GetBounds(origin);
+            var spacedBounds = bounds;
+            spacedBounds.Inflate(3, 3);
+            if (spacedBounds.X < 0 || spacedBounds.Y < 0 ||
+                spacedBounds.Right > width * DrawTree.SourceTileSize ||
+                spacedBounds.Bottom > height * DrawTree.SourceTileSize)
+            {
+                return;
+            }
+            foreach (var other in placedBounds)
+            {
+                if (spacedBounds.Intersects(other))
+                {
+                    return;
+                }
+            }
+
+            tiles[origin] = TileType.Tree;
+            placedBounds.Add(spacedBounds);
+
+            for (int branch = 0; branch < 4; branch++)
+            {
+                if (random.NextDouble() < spreadChance)
+                {
+                    SpreadGrove(tiles, origin + GroveOffset(branch, random), random, width, height, depth + 1, maxDepth, spreadChance * 0.8, placedBounds);
+                }
+            }
+        }
+
+        // Every tile a tree sprite covers, even partly.
+        private static HashSet<Point> BuildCanopyZone(Dictionary<Point, TileType> tiles)
+        {
+            const int size = DrawTree.SourceTileSize;
+            var zone = new HashSet<Point>();
+            foreach (var pair in tiles)
+            {
+                if (pair.Value != TileType.Tree)
+                {
+                    continue;
+                }
+
+                var bounds = DrawTree.GetBounds(pair.Key);
+                bounds.Inflate(3, 3);
+                for (int tx = bounds.X / size; tx <= (bounds.Right - 1) / size; tx++)
+                {
+                    for (int ty = bounds.Y / size; ty <= (bounds.Bottom - 1) / size; ty++)
+                    {
+                        zone.Add(new Point(tx, ty));
+                    }
+                }
+            }
+            return zone;
+        }
+
         private static void SpreadCluster(
             Dictionary<Point, TileType> tiles, Point origin, TileType entityType,
-            Random random, int width, int height, int depth, int maxDepth, double spreadChance)
+            Random random, int width, int height, int depth, int maxDepth, double spreadChance,
+            HashSet<Point>? blocked)
         {
             if (depth > maxDepth)
             {
@@ -95,6 +211,14 @@ namespace TileQuest
             {
                 return; // base case: already claimed by this or another cluster
             }
+            if (blocked != null && blocked.Contains(origin))
+            {
+                return; // base case: tile is hidden behind a tree canopy
+            }
+            if (entityType == TileType.Rock && !CanPlaceRock(tiles, origin, width, height, blocked))
+            {
+                return;
+            }
 
             tiles[origin] = entityType;
 
@@ -104,19 +228,63 @@ namespace TileQuest
             {
                 if (random.NextDouble() < spreadChance)
                 {
-                    SpreadCluster(tiles, origin + direction, entityType, random, width, height, depth + 1, maxDepth, spreadChance * 0.6);
+                    SpreadCluster(tiles, origin + direction, entityType, random, width, height, depth + 1, maxDepth, spreadChance * 0.6, blocked);
                 }
             }
         }
 
-        private static Point? RandomGrassTile(Dictionary<Point, TileType> tiles, int width, int height, Random random)
+        private static bool CanPlaceRock(
+            Dictionary<Point, TileType> tiles, Point origin, int width, int height, HashSet<Point>? blocked)
+        {
+            var candidate = DrawRock.GetBounds(origin, DrawTree.SourceTileSize);
+            candidate.Inflate(3, 3);
+            if (candidate.X < 0 || candidate.Y < 0 ||
+                candidate.Right > width * DrawTree.SourceTileSize ||
+                candidate.Bottom > height * DrawTree.SourceTileSize)
+            {
+                return false;
+            }
+
+            if (blocked != null)
+            {
+                for (int x = candidate.X / DrawTree.SourceTileSize; x <= (candidate.Right - 1) / DrawTree.SourceTileSize; x++)
+                {
+                    for (int y = candidate.Y / DrawTree.SourceTileSize; y <= (candidate.Bottom - 1) / DrawTree.SourceTileSize; y++)
+                    {
+                        if (blocked.Contains(new Point(x, y)))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            for (int x = origin.X - 2; x <= origin.X + 2; x++)
+            {
+                for (int y = origin.Y - 2; y <= origin.Y + 2; y++)
+                {
+                    var other = new Point(x, y);
+                    var otherBounds = DrawRock.GetBounds(other, DrawTree.SourceTileSize);
+                    otherBounds.Inflate(3, 3);
+                    if (tiles.TryGetValue(other, out var tile) && tile == TileType.Rock &&
+                        candidate.Intersects(otherBounds))
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private static Point? RandomGrassTile(
+            Dictionary<Point, TileType> tiles, int width, int height, Random random, HashSet<Point>? blocked)
         {
             // A bounded number of random tries rather than scanning the whole
             // map — plenty for the sparse cluster counts used here.
             for (int attempt = 0; attempt < 50; attempt++)
             {
                 var candidate = new Point(random.Next(width), random.Next(height));
-                if (tiles[candidate] == TileType.Grass)
+                if (tiles[candidate] == TileType.Grass && (blocked == null || !blocked.Contains(candidate)))
                 {
                     return candidate;
                 }

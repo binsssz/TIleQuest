@@ -7,7 +7,7 @@ namespace TileQuest
     public enum TileType
     {
         Grass,     // base walkable ground
-        TallGrass, // walkable; triggers wild encounters
+        TallGrass, // walkable; decorative overlay for now
         Tree,      // impassable obstacle
         Rock,      // impassable obstacle
         Wall       // sentinel only — the default for out-of-bounds coordinates;
@@ -58,13 +58,43 @@ namespace TileQuest
             return _tiles.TryGetValue(gridPos, out var tile) ? tile : TileType.Wall;
         }
 
-        // Explicit allow-list rather than "not Wall": now that there are
-        // multiple non-walkable entity types (Tree, Rock), only tile types
-        // that are deliberately meant to be walked on count as walkable.
+        // Tree and rock anchors are checked against their collision bounds
+        // below, so their visible size controls the space they occupy.
         public bool IsWalkable(Point gridPos)
         {
             var tile = GetTile(gridPos);
-            return tile == TileType.Grass || tile == TileType.TallGrass;
+            if (tile != TileType.Grass && tile != TileType.TallGrass &&
+                tile != TileType.Tree && tile != TileType.Rock)
+            {
+                return false;
+            }
+
+            var playerBounds = new Rectangle(
+                gridPos.X * TileSize + TileSize / 4,
+                gridPos.Y * TileSize + TileSize * 2 / 3,
+                TileSize / 2,
+                TileSize / 4);
+
+            for (int x = gridPos.X - 1; x <= gridPos.X + 1; x++)
+            {
+                for (int y = gridPos.Y - 1; y <= gridPos.Y + 1; y++)
+                {
+                    var obstaclePosition = new Point(x, y);
+                    var obstacleTile = GetTile(obstaclePosition);
+                    if (obstacleTile == TileType.Tree &&
+                        playerBounds.Intersects(DrawTree.GetCollisionBounds(obstaclePosition, TileSize)))
+                    {
+                        return false;
+                    }
+                    if (obstacleTile == TileType.Rock &&
+                        playerBounds.Intersects(DrawRock.GetBounds(obstaclePosition, TileSize)))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         public IEnumerable<KeyValuePair<Point, TileType>> AllTiles() => _tiles;

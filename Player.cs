@@ -17,11 +17,21 @@ namespace TileQuest
         public FacingDirection Facing { get; private set; } = FacingDirection.Down;
         public bool IsMoving { get; private set; }
 
+        // Walk animation state. IsWalking stays true across the one-frame gap
+        // between back-to-back steps (key held down), so the animation runs
+        // continuously instead of restarting every tile. AnimationTime is the
+        // number of seconds spent walking since the last time the player was
+        // standing still.
+        public bool IsWalking { get; private set; }
+        public float AnimationTime { get; private set; }
+
         public event Action<Point>? OnTileEntered;
 
         private Vector2 _targetPixelPosition;
         private readonly float _speed; // pixels per second
         private readonly int _tileSize;
+        private float _idleSeconds;
+        private const float StopWalkingAfterSeconds = 0.06f;
 
         public Player(Point startGridPos, int tileSize, float tilesPerSecond = 4f)
         {
@@ -34,8 +44,12 @@ namespace TileQuest
 
         public void Update(GameTime gameTime, TileMap map, KeyboardState keyboard)
         {
+            float deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
             if (IsMoving)
             {
+                AnimationTime += deltaSeconds;
+                _idleSeconds = 0f;
                 SlideTowardTarget(gameTime);
                 return;
             }
@@ -43,6 +57,7 @@ namespace TileQuest
             var direction = ReadDirection(keyboard);
             if (direction == Point.Zero)
             {
+                RegisterStandingStill(deltaSeconds);
                 return;
             }
 
@@ -52,12 +67,27 @@ namespace TileQuest
                 // Bump into the wall: still update facing (classic Pokemon feel —
                 // you turn to face a wall even if you can't walk into it) but
                 // don't start a slide.
+                RegisterStandingStill(deltaSeconds);
                 return;
             }
 
             GridPosition = candidate;
             _targetPixelPosition = new Vector2(candidate.X * _tileSize, candidate.Y * _tileSize);
             IsMoving = true;
+            IsWalking = true;
+            _idleSeconds = 0f;
+        }
+
+        // Only switch back to the standing pose once the player has really
+        // stopped, not during the single frame between two chained steps.
+        private void RegisterStandingStill(float deltaSeconds)
+        {
+            _idleSeconds += deltaSeconds;
+            if (_idleSeconds >= StopWalkingAfterSeconds)
+            {
+                IsWalking = false;
+                AnimationTime = 0f;
+            }
         }
 
         private void SlideTowardTarget(GameTime gameTime)

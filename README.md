@@ -1,112 +1,71 @@
-# TileQuest — Village Survival RPG (working title)
+> **This is the sprite-experiment copy**, branched off the main project to
+> test real sprite rendering without risking the base build. Textures are
+> loaded directly at runtime (`TitleContainer.OpenStream` +
+> `Texture2D.FromStream`) rather than through the Content Pipeline, so there is
+> no `Content.mgcb` and no `dotnet-mgcb` tool to install. The PNGs in `Content/`
+> are copied next to the executable at build time (see `TileQuest.csproj`).
+>
+> **Sprite mapping:** `TileSprites.cs` holds the source-rectangle coordinates
+> for the trees (`Content/All free tiles.png`, 16x16 grid) and the rocks
+> (`Content/Rocks.png`). Grass, tall grass and the player use their own PNGs
+> (`grass.png`, `tallgrass_overlay.png`, `player.png`).
 
-A Pokemon-style top-down game built in MonoGame for a DSA (Data Structures &
-Algorithms) course project. Current direction: a village survival/defense
-game — gather and build by day, defend the VillageHearth from waves of
-enemies by night, across 5 required DSA topics and a multi-ending state
-machine.
+# TileQuest — Forest Village Defense
+A 2D grid-based action RPG built in MonoGame (C#) for a Data Structures &
+Algorithms (DSA) course project. Set across a 5-night story arc, the player awakens
+in a quiet forest village, gathers resources, crafts gear, and defends the central
+Village Hearth from escalating nightly monster waves — leading up to a confrontation
+with a traitorous Village Elder and a final assault on the forest lair.
+---
+## Story & Narrative Progression (5-Night Arc)
+- **Day 1 / Night 1 — Arrival & First Attack:** Wake up in the village after getting lost. Kind villagers take you in; you repay them by defending the Village Hearth during the initial monster raid.
+- **Day 2 / Night 2 — Investigation & Forest Patrol:** Venture into the surrounding forest to gather wood/stone, scout monster spawn points, and clear out stray forest beasts.
+- **Day 3 / Night 3 — The Monster Hideout:** Discover the monsters' forest lair. Fight through an intense wave, but realize your current gear is insufficient and fall back to the village.
+- **Day 4 / Night 4 — The Traitorous Elder:** Uncover secret documents revealing the Village Elder has been orchestrating the attacks to keep the villagers dependent on his power. Defeat the Elder in a 1-on-1 boss battle in the village square to unlock his **Arcane Burst** skill.
+- **Day 5 / Night 5 — The Final Stand:** Launch a final assault against the monster horde and lair using your newly acquired Arcane Burst skill to determine the fate of the village.
+---
+## Endings & Game State Machine
+The game features three distinct endings based on player actions and survival:
+1. **Ending A — True Victory (Hero of the Forest):** Defeat the final boss wave on Night 5. The village is saved, and your final score is recorded on the leaderboard.
+2. **Ending B — Defeat (Fall of the Hearth):** The Village Hearth's health drops to 0 during any night phase.
+3. **Ending C — Secret Ending (The Deserter):** Choose to step onto the `ForestExit` boundary tile during Day 4 or Day 5 and abandon the village to save yourself.
+---
+## Required DSA Topics (Grading Checklist)
 
-Rename the project any time by renaming `TileQuest.csproj`, the folder, and
-the `RootNamespace`/`namespace TileQuest` references.
+| # | Topic | File(s) | Status | Game Implementation |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Queue** — Wave Spawner | `EnemySpawnInfo.cs`, `WaveSpawner.cs` | ✅ Module built | FIFO queue managing nightly enemy spawn order & Elder's summoned adds |
+| 2 | **Stack** — Undo System | `PlayerAction.cs`, `ActionHistory.cs` | ✅ Module built | LIFO stack to reverse/undo crafting and defense placement during the Day phase |
+| 3 | **LinkedList** — Inventory | `Item.cs`, `Inventory.cs` | ✅ Module built | Dynamic insertion and removal of collected resources and equipment nodes |
+| 4 | **Binary Search** — Shop / Recipes | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | ✅ Module built | $O(\log n)$ lookup for items and crafting costs at the Village Trader |
+| 5 | **Insertion Sort** — Inventory / Scores | `InsertionSortUtil.cs` | ✅ Module built | Sorting inventory items by value (done); ranking final scores on the leaderboard (Phase 8) |
 
-## Required DSA topics (grading checklist)
+_"Module built" = the data structure is implemented and self-checked in isolation; wiring it into gameplay happens in the phase listed below._
 
-| # | Topic | File(s) | Status |
-|---|---|---|---|
-| 1 | Queue — wave spawner | `EnemySpawnInfo.cs`, `WaveSpawner.cs` | ✅ built, not yet wired into `Game1` |
-| 2 | Stack — day-phase undo | `PlayerAction.cs`, `ActionHistory.cs` | ✅ built, not yet wired into `Game1` |
-| 3 | LinkedList — inventory | `Item.cs`, `Inventory.cs` | ✅ built, not yet wired into `Game1` |
-| 4 | Binary Search — recipes/shop lookup | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | ✅ built, not yet wired into `Game1` |
-| 5 | Insertion Sort — inventory/leaderboard | `InsertionSortUtil.cs` | ✅ built, already used by `Inventory.GetSortedByValue()` |
+---
+## Project Phases (Expanded Development Roadmap)
 
-Each of these five is a standalone, self-contained class right now —
-correct in isolation, but not yet hooked up to the game loop. That wiring is
-Phase 3 (combat/wave loop) and Phase 4 (state machine) below.
+| Phase | Scope & Feature Focus | Status |
+| :--- | :--- | :--- |
+| **Phase 1** | Engine foundation, grid movement, sprite mapping (`TileSprites.cs`), and isolated DSA modules (verified by `DsaDemo.cs`) | ✅ Complete |
+| **Phase 2** | Fixed Village/Forest map layout, Day/Night `TimeSystem`, and `VillageHearth` state | Not Started |
+| **Phase 3** | Resource harvesting (wood/stone) & `LinkedList` inventory integration | Not Started |
+| **Phase 4** | Barricade crafting & `Stack<Action>` Undo building system | Not Started |
+| **Phase 5** | `Queue` wave spawner integration (Nights 1–3), melee combat, & Hearth HP tracking | Not Started |
+| **Phase 6** | **Night 4 Traitorous Elder Boss fight** & unlocking the **Arcane Burst** spell | Not Started |
+| **Phase 7** | Village Trader shop (`BinarySearch`), Night 5 Lair Finale, & 3 Narrative Endings | Not Started |
+| **Phase 8** | High score leaderboard (`InsertionSort`), HUD polish, & final presentation cleanup | Not Started |
 
-## Project phases (current plan)
-
-| Phase | Covers | Status |
-|---|---|---|
-| 1 | Data structures setup (this batch) | ✅ done |
-| 2 | World refactor to village theme + day/night `TimeSystem` | not started |
-| 3 | Wave spawning, combat, Hearth HP, wiring the undo stack | not started |
-| 4 | `GameState` machine + 3 endings (Victory/Defeat/Secret Escape) | not started |
-| 5 | Save/load, HUD, leaderboard wiring, presentation comments | not started |
-
-## Carried over from the earlier forest-exploration build
-
-These aren't on the 5 required topics above, but they still work and don't
-conflict with anything, so they're staying rather than being thrown away:
-
-- **`Camera2D.cs`** — target-following camera with world-bounds clamping.
-  Needs no changes.
-- **`Player.cs`** — Pokemon-style grid movement. Needs no changes for Phase 1;
-  Phase 3 will likely extend it for attacking.
-- **`ForestGenerator.cs`** (recursion) and **`TileGraph.cs`** (graph + BFS) —
-  these generate/verify the current forest map. Phase 2 will retheme the
-  tile set to the village (`Grass`, `Tree` as a hard wall, `VillageHearth`,
-  `ShopNPC`, `ForestExit`), at which point these get adapted rather than
-  removed — the underlying "scatter obstacles, then verify reachability"
-  logic still applies to a village bordered by trees.
-- **`TileMap.cs`** (hash table) — same deal; the `Dictionary<Point, TileType>`
-  storage stays, the `TileType` enum gets replaced in Phase 2.
-
-## Phase 1 details
-
-**`WaveSpawner` (Queue)** — `QueueWave(nightNumber)` fills a
-`Queue<EnemySpawnInfo>` with that night's enemies (count/health/speed scale
-with night number). `Update(deltaSeconds)` dequeues one enemy at a time as
-each one's `SpawnDelaySeconds` elapses — FIFO order, exactly matching "wave
-composition is authored in a specific order."
-
-**`ActionHistory` (Stack)** — `Record(action)` pushes a `PlayerAction` when
-the player places a defense or buys an upgrade. `Undo()` pops the most
-recent one so the caller can remove the placement and refund
-`ResourceCost` — LIFO, so undo always affects the *last* action, not the
-first.
-
-**`Inventory` (LinkedList)** — `AddItem`/`RemoveItem` operate on a
-`LinkedList<Item>` for O(1) add/remove-once-found, instead of a `List<T>`
-that has to shift every following element on a middle removal.
-`GetSortedByValue()` returns a sorted snapshot via `InsertionSortUtil`.
-
-**`BinarySearchUtil` (Binary Search)** — `FindByKey(sortedItems, target,
-keySelector)` is a hand-rolled O(log n) search over any list sorted
-ascending by an int key. `RecipeBook.SortedByCost` is a small hardcoded,
-cost-sorted `CraftingRecipe` list to exercise it against; the real shop UI
-(Phase 2/3) can extend or replace that list as long as it stays sorted.
-
-**`InsertionSortUtil` (Insertion Sort)** — `SortDescending(items,
-keySelector)` is a hand-rolled insertion sort, generic over any key. Used by
-`Inventory.GetSortedByValue()` now; Phase 4's leaderboard will call the same
-method on score entries.
-
-## Building & running
-
-You'll need the .NET SDK (8.0 or later) and internet access once, to restore
-the MonoGame NuGet package:
-
-```
+---
+## Building & Running
+**Prerequisites:** .NET SDK (8.0 or later).
+```bash
+# Restore dependencies and launch the game
 dotnet restore
 dotnet run
 ```
 
-Or open the folder in Visual Studio / Rider / VS Code with the C# extension
-and run from there.
-
-**Controls:** WASD or arrow keys to move, Esc to quit.
-
-## Swapping in real sprites
-
-Everything currently draws as tinted rectangles via a single 1x1 pixel
-texture (see `LoadContent()` in `Game1.cs`). When you're ready for real art:
-
-1. Grab a free, license-clear top-down tile/character pack — Kenney.nl and
-   OpenGameArt.org both have CC0 packs that fit this style well.
-2. Add a `Content.mgcb` file and reference `MonoGame.Content.Builder.Task`
-   in the `.csproj` (the standard MonoGame content pipeline).
-3. Replace the `_pixel` draws in `Game1.cs` with `Texture2D` sprites loaded
-   via `Content.Load<Texture2D>(...)`.
-
-This is deliberately left out for now so the build has zero external
-dependencies beyond the MonoGame package itself.
+On startup the console prints a `=== DSA module self-check ===` report
+(`DsaDemo.cs`) and a `[TileGraph]` map connectivity check before the game
+window opens. Every line should read `PASS` / `OK`. Controls: WASD or arrow keys
+to move, Esc to quit.

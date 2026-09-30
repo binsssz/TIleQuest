@@ -20,7 +20,7 @@ namespace TileQuest
     }
 
     // A small hardcoded, cost-sorted recipe list to demonstrate/exercise
-    // BinarySearchUtil against. The real shop/crafting UI (Phase 2/3) can
+    // BinarySearchUtil against. The real Village Trader shop (Phase 7) can
     // replace or extend this list — the important part for grading purposes
     // is that it stays sorted by Cost ascending, since binary search only
     // works on sorted data.

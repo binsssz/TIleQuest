@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -11,16 +12,33 @@ namespace TileQuest
 
         private readonly GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch = null!;
-        private Texture2D _pixel = null!;
+
+        // Real sprite textures, direct-loaded (no Content Pipeline/mgcb tool
+        // needed — see LoadTexture below and the .csproj's
+        // CopyToOutputDirectory entry for Content/*.png).
+        private Texture2D _tileSheet = null!;
+        private Texture2D _grassTexture = null!;
+        private Texture2D _tallGrassOverlayTexture = null!;
+        private Texture2D _rocksTexture = null!;
+        private Texture2D _playerTexture = null!;
+        private DrawTree[] _trees = Array.Empty<DrawTree>();
+        private DrawRock[] _rocks = Array.Empty<DrawRock>();
 
         private TileMap _map = null!;
         private Player _player = null!;
         private Camera2D _camera = null!;
-        private readonly Random _random = new();
 
-        // Simple placeholder feedback for the encounter system until Phase 4
-        // adds a real battle screen: a brief white flash + console log.
-        private float _encounterFlashSecondsRemaining;
+        // player.png is a grid of 48x48 cells, 6 frames per row:
+        //   rows 0-2 = standing (down, side, up), rows 3-5 = walking (down, side, up).
+        // The side row faces right; facing left is that row flipped.
+        private const int PlayerCellSize = 48;
+        private const int PlayerFrameCount = 6;
+        private const float WalkFramesPerSecond = 12f;
+        private const int PlayerSpriteHeight = 21; // head-to-feet in source pixels, scaled to one tile
+
+        // Same 32x32 crop of every cell, so the character doesn't jitter
+        // between frames. The bottom edge is where the feet/shadow sit.
+        private static readonly Rectangle PlayerCrop = new(8, 12, 32, 32);
 
         public Game1()
         {
@@ -37,7 +55,6 @@ namespace TileQuest
         {
             _map = new TileMap(width: 60, height: 45, tileSize: TileSize);
             _player = new Player(_map.SpawnPoint, TileSize, tilesPerSecond: 8f);
-            _player.OnTileEntered += HandleTileEntered;
 
             _camera = new Camera2D(
                 _graphics.PreferredBackBufferWidth,
@@ -54,25 +71,22 @@ namespace TileQuest
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // A single white pixel, tinted per draw call, stands in for real
-            // sprites for now — no Content pipeline needed for this milestone.
-            _pixel = new Texture2D(GraphicsDevice, 1, 1);
-            _pixel.SetData(new[] { Color.White });
+            _tileSheet = LoadTexture("All free tiles.png");
+            _trees = DrawTree.CreateForest(_map, _tileSheet, TileSize);
+            _grassTexture = LoadTexture("grass.png");
+            _tallGrassOverlayTexture = LoadTexture("tallgrass_overlay.png");
+            _rocksTexture = LoadTexture("Rocks.png");
+            _rocks = DrawRock.CreateFor(_map, _rocksTexture, TileSize);
+            _playerTexture = LoadTexture("player.png");
         }
 
-        private void HandleTileEntered(Point gridPos)
+        // Direct-load, no Content Pipeline: reads PNG bytes straight from the
+        // output directory (copied there at build time per the .csproj) via
+        // TitleContainer, which works the same on Windows/macOS/Linux.
+        private Texture2D LoadTexture(string fileName)
         {
-            if (_map.GetTile(gridPos) != TileType.TallGrass)
-            {
-                return;
-            }
-
-            const double encounterChance = 0.15;
-            if (_random.NextDouble() < encounterChance)
-            {
-                _encounterFlashSecondsRemaining = 0.25f;
-                Console.WriteLine("Wild encounter triggered! (battle screen goes here in Phase 4)");
-            }
+            using Stream stream = TitleContainer.OpenStream($"Content/{fileName}");
+            return Texture2D.FromStream(GraphicsDevice, stream);
         }
 
         protected override void Update(GameTime gameTime)
@@ -86,11 +100,6 @@ namespace TileQuest
             _player.Update(gameTime, _map, keyboard);
             _camera.Update(gameTime, _player.PixelPosition, followSpeed: 8f);
 
-            if (_encounterFlashSecondsRemaining > 0)
-            {
-                _encounterFlashSecondsRemaining -= (float)gameTime.ElapsedGameTime.TotalSeconds;
-            }
-
             base.Update(gameTime);
         }
 
@@ -101,14 +110,8 @@ namespace TileQuest
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
 
             DrawTiles();
-            DrawPlayer();
-
-            if (_encounterFlashSecondsRemaining > 0)
-            {
-                var viewport = GraphicsDevice.Viewport;
-                var flashRect = new Rectangle((int)_camera.Position.X, (int)_camera.Position.Y, viewport.Width, viewport.Height);
-                _spriteBatch.Draw(_pixel, flashRect, new Color(255, 255, 255, 60));
-            }
+            DrawRocks();
+            DrawTreesAndPlayer();
 
             _spriteBatch.End();
 
@@ -121,62 +124,90 @@ namespace TileQuest
             {
                 var rect = new Rectangle(gridPos.X * TileSize, gridPos.Y * TileSize, TileSize, TileSize);
 
-                // Ground first — trees and rocks still stand on grass, they
-                // don't replace it.
-                Color groundColor = tile == TileType.TallGrass ? new Color(40, 110, 40) : new Color(140, 200, 120);
-                _spriteBatch.Draw(_pixel, rect, groundColor);
+                // Ground sprite first — every tile stands on grass; tall
+                // grass/trees/rocks draw an overlay sprite on top of it,
+                // same layering the colored-rectangle version used.
+                _spriteBatch.Draw(_grassTexture, rect, Color.White);
 
                 switch (tile)
                 {
-                    case TileType.Tree:
-                        DrawTree(rect);
+                    case TileType.TallGrass:
+                        _spriteBatch.Draw(_tallGrassOverlayTexture, rect, Color.White);
                         break;
-                    case TileType.Rock:
-                        DrawRock(rect);
+                    case TileType.Tree:
+                        // Drawn by DrawTree (one sprite per tree tile, in
+                        // Draw), since tree sprites are taller than a tile.
                         break;
                 }
             }
         }
 
-        private void DrawTree(Rectangle tile)
+        private void DrawRocks()
         {
-            // Trunk: a thin brown rectangle at the bottom-center of the tile.
-            int trunkWidth = Math.Max(2, TileSize / 4);
-            var trunk = new Rectangle(tile.Center.X - trunkWidth / 2, tile.Bottom - TileSize / 3, trunkWidth, TileSize / 3);
-            _spriteBatch.Draw(_pixel, trunk, new Color(90, 60, 30));
-
-            // Canopy: a darker green block covering most of the tile, placeholder
-            // for a round treetop sprite later.
-            var canopy = new Rectangle(tile.X + 2, tile.Y, tile.Width - 4, tile.Height * 2 / 3);
-            _spriteBatch.Draw(_pixel, canopy, new Color(20, 90, 30));
+            foreach (var rock in _rocks)
+            {
+                rock.Draw(_spriteBatch);
+            }
         }
 
-        private void DrawRock(Rectangle tile)
+        // Depth sorting: trees are sorted top-to-bottom, so draw the ones whose
+        // base is at or above the player's feet first, then the player, then
+        // the trees lower on the screen. That way the player walks in front of
+        // a tree when south of it and behind it (hidden by the canopy) when
+        // north of it.
+        private void DrawTreesAndPlayer()
         {
-            int inset = Math.Max(2, TileSize / 6);
-            var body = new Rectangle(tile.X + inset, tile.Y + inset, tile.Width - inset * 2, tile.Height - inset * 2);
-            _spriteBatch.Draw(_pixel, body, new Color(120, 120, 120));
+            int playerFootY = (int)_player.PixelPosition.Y + TileSize;
 
-            var highlight = new Rectangle(body.X + 2, body.Y + 2, Math.Max(2, body.Width / 3), Math.Max(2, body.Height / 3));
-            _spriteBatch.Draw(_pixel, highlight, new Color(170, 170, 170));
+            int i = 0;
+            while (i < _trees.Length && _trees[i].BaseY <= playerFootY)
+            {
+                _trees[i].Draw(_spriteBatch);
+                i++;
+            }
+
+            DrawPlayer();
+
+            for (; i < _trees.Length; i++)
+            {
+                _trees[i].Draw(_spriteBatch);
+            }
         }
 
         private void DrawPlayer()
         {
-            var playerRect = new Rectangle((int)_player.PixelPosition.X, (int)_player.PixelPosition.Y, TileSize, TileSize);
-            _spriteBatch.Draw(_pixel, playerRect, Color.CornflowerBlue);
-
-            // A small notch on the facing edge stands in for a directional
-            // sprite until real character art is dropped in.
-            const int notch = 6;
-            Rectangle facingRect = _player.Facing switch
+            int row = _player.Facing switch
             {
-                FacingDirection.Up => new Rectangle(playerRect.Center.X - notch / 2, playerRect.Top, notch, notch),
-                FacingDirection.Down => new Rectangle(playerRect.Center.X - notch / 2, playerRect.Bottom - notch, notch, notch),
-                FacingDirection.Left => new Rectangle(playerRect.Left, playerRect.Center.Y - notch / 2, notch, notch),
-                _ => new Rectangle(playerRect.Right - notch, playerRect.Center.Y - notch / 2, notch, notch),
+                FacingDirection.Down => 0,
+                FacingDirection.Up => 2,
+                _ => 1, // Left and Right share the side row
             };
-            _spriteBatch.Draw(_pixel, facingRect, Color.DarkBlue);
+            if (_player.IsWalking)
+            {
+                row += 3;
+            }
+
+            int frame = _player.IsWalking
+                ? (int)(_player.AnimationTime * WalkFramesPerSecond) % PlayerFrameCount
+                : 0;
+
+            var source = new Rectangle(
+                frame * PlayerCellSize + PlayerCrop.X,
+                row * PlayerCellSize + PlayerCrop.Y,
+                PlayerCrop.Width,
+                PlayerCrop.Height);
+
+            float scale = TileSize / (float)PlayerSpriteHeight;
+            int size = (int)Math.Round(PlayerCrop.Width * scale);
+            int x = (int)_player.PixelPosition.X + (TileSize - size) / 2;
+            int y = (int)_player.PixelPosition.Y + TileSize - size;
+            var destination = new Rectangle(x, y, size, size);
+
+            var effects = _player.Facing == FacingDirection.Left
+                ? SpriteEffects.FlipHorizontally
+                : SpriteEffects.None;
+
+            _spriteBatch.Draw(_playerTexture, destination, source, Color.White, 0f, Vector2.Zero, effects, 0f);
         }
     }
 }
