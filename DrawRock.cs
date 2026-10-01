@@ -8,7 +8,7 @@ namespace TileQuest
     public sealed class DrawRock
     {
         private const int SourceTileSize = TileSprites.GridSize;
-        private static readonly float[] SizeVariants = { 0.75f, 1.15f, 1.6f };
+        private static readonly float[] SizeVariants = { 0.45f, 0.6f, 0.75f };
         private static readonly Rectangle[] Variants = TileSprites.Rocks;
 
         private readonly Texture2D _texture;

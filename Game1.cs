@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -16,13 +17,21 @@ namespace TileQuest
         // Real sprite textures, direct-loaded (no Content Pipeline/mgcb tool
         // needed — see LoadTexture below and the .csproj's
         // CopyToOutputDirectory entry for Content/*.png).
-        private Texture2D _tileSheet = null!;
-        private Texture2D _grassTexture = null!;
-        private Texture2D _tallGrassOverlayTexture = null!;
+        private Texture2D _floorTilesTexture = null!;
+        private Texture2D _vegetationTexture = null!;
+        private Texture2D _shadowsTexture = null!;
+        private Texture2D _tree1Texture = null!;
+        private Texture2D _tree2Texture = null!;
+        private Texture2D _tree3Texture = null!;
         private Texture2D _rocksTexture = null!;
+        private Texture2D _churchTexture = null!;
+        private Texture2D _house1Texture = null!;
+        private Texture2D _house2Texture = null!;
         private Texture2D _playerTexture = null!;
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
+        private (Rectangle Source, Rectangle Destination)[] _vegetation = Array.Empty<(Rectangle, Rectangle)>();
+        private Rectangle[] _dirtPatches = Array.Empty<Rectangle>(); // tile-unit footprints
 
         private TileMap _map = null!;
         private Player _player = null!;
@@ -71,12 +80,20 @@ namespace TileQuest
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            _tileSheet = LoadTexture("All free tiles.png");
-            _trees = DrawTree.CreateForest(_map, _tileSheet, TileSize);
-            _grassTexture = LoadTexture("grass.png");
-            _tallGrassOverlayTexture = LoadTexture("tallgrass_overlay.png");
+            _tree1Texture = LoadTexture("Tree1.png");
+            _tree2Texture = LoadTexture("Tree 2.png");
+            _tree3Texture = LoadTexture("Tree 3.png");
+            _trees = DrawTree.CreateForest(_map, _tree1Texture, _tree2Texture, _tree3Texture, TileSize);
+            _floorTilesTexture = LoadTexture("Floors_Tiles.png");
+            _dirtPatches = CreateDirtPatches();
+            _vegetationTexture = LoadTexture("Vegetation.png");
+            _shadowsTexture = LoadTexture("Shadows.png");
+            _vegetation = CreateVegetation();
             _rocksTexture = LoadTexture("Rocks.png");
             _rocks = DrawRock.CreateFor(_map, _rocksTexture, TileSize);
+            _churchTexture = LoadTexture("CHURCH.png");
+            _house1Texture = LoadTexture("HOUSE 1.png");
+            _house2Texture = LoadTexture("HOUSE 2.png");
             _playerTexture = LoadTexture("player.png");
         }
 
@@ -110,7 +127,11 @@ namespace TileQuest
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
 
             DrawTiles();
+            DrawDirtPatches();
+            DrawTreeShadows();
             DrawRocks();
+            DrawVegetation();
+            DrawVillageStructures();
             DrawTreesAndPlayer();
 
             _spriteBatch.End();
@@ -124,21 +145,153 @@ namespace TileQuest
             {
                 var rect = new Rectangle(gridPos.X * TileSize, gridPos.Y * TileSize, TileSize, TileSize);
 
-                // Ground sprite first — every tile stands on grass; tall
-                // grass/trees/rocks draw an overlay sprite on top of it,
-                // same layering the colored-rectangle version used.
-                _spriteBatch.Draw(_grassTexture, rect, Color.White);
+                _spriteBatch.Draw(_floorTilesTexture, rect, TileSprites.Grass, Color.White);
+            }
+        }
 
-                switch (tile)
+        // Dirt patches are fixed-size (5x5 tiles) so the sprite is always drawn at
+        // an exact 2x scale; stretching it to other sizes would distort the pixels.
+        private Rectangle[] CreateDirtPatches()
+        {
+            const int patchCount = 18;
+            var patches = new List<Rectangle>();
+            var random = new Random();
+
+            // A row of patches in the village; spaced one patch-width apart so
+            // they sit side by side without overlapping.
+            int centerX = _map.Width / 2;
+            int villagePathY = _map.Height / 2 + 3;
+            foreach (int x in new[] { centerX - 5, centerX, centerX + 5 })
+            {
+                TryAddDirtPatch(new Point(x, villagePathY), patches);
+            }
+
+            for (int attempt = 0; attempt < patchCount * 80 && patches.Count < patchCount; attempt++)
+            {
+                var center = new Point(random.Next(_map.Width), random.Next(_map.Height));
+                TryAddDirtPatch(center, patches);
+            }
+
+            return patches.ToArray();
+        }
+
+        private bool TryAddDirtPatch(Point center, List<Rectangle> patches)
+        {
+            int size = TileSprites.DirtPatchSizeInTiles;
+            int half = size / 2;
+            var tileArea = new Rectangle(center.X - half, center.Y - half, size, size);
+
+            if (tileArea.Left < 0 || tileArea.Top < 0 ||
+                tileArea.Right > _map.Width || tileArea.Bottom > _map.Height)
+            {
+                return false;
+            }
+
+            foreach (var patch in patches)
+            {
+                if (patch.Intersects(tileArea))
                 {
-                    case TileType.TallGrass:
-                        _spriteBatch.Draw(_tallGrassOverlayTexture, rect, Color.White);
-                        break;
-                    case TileType.Tree:
-                        // Drawn by DrawTree (one sprite per tree tile, in
-                        // Draw), since tree sprites are taller than a tile.
-                        break;
+                    return false;
                 }
+            }
+
+            for (int x = tileArea.Left; x < tileArea.Right; x++)
+            {
+                for (int y = tileArea.Top; y < tileArea.Bottom; y++)
+                {
+                    TileType tile = _map.GetTile(new Point(x, y));
+                    if (tile != TileType.Grass && tile != TileType.TallGrass)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            patches.Add(tileArea); // stored in TILE units; converted to pixels when drawn
+            return true;
+        }
+
+        private void DrawDirtPatches()
+        {
+            int size = TileSprites.DirtPatchSizeInTiles;
+
+            foreach (var area in _dirtPatches)
+            {
+                // Layer 1: brown fill, one tile at a time, skipping the four
+                // corner tiles (the frame is transparent there, so fill would
+                // show as little brown squares sticking out).
+                for (int row = 0; row < size; row++)
+                {
+                    for (int column = 0; column < size; column++)
+                    {
+                        bool isCorner = (row == 0 || row == size - 1) && (column == 0 || column == size - 1);
+                        if (isCorner)
+                        {
+                            continue;
+                        }
+
+                        var tile = new Rectangle((area.X + column) * TileSize, (area.Y + row) * TileSize, TileSize, TileSize);
+                        _spriteBatch.Draw(_floorTilesTexture, tile, TileSprites.DirtPatchFill, Color.White);
+                    }
+                }
+
+                // Layer 2: green frame on top. Its cut-out reveals the fill.
+                var destination = new Rectangle(area.X * TileSize, area.Y * TileSize, size * TileSize, size * TileSize);
+                _spriteBatch.Draw(_floorTilesTexture, destination, TileSprites.DirtPatchFrame, Color.White);
+            }
+        }
+
+        private (Rectangle Source, Rectangle Destination)[] CreateVegetation()
+        {
+            var decorations = new List<(Rectangle Source, Rectangle Destination)>();
+            var random = new Random();
+            float scale = TileSize / (float)TileSprites.GridSize;
+
+            foreach (var (position, tile) in _map.AllTiles())
+            {
+                if (tile != TileType.TallGrass || random.NextDouble() >= 0.75 || IsInsideDirtPatch(position))
+                {
+                    continue;
+                }
+
+                Rectangle source = TileSprites.Vegetation[random.Next(TileSprites.Vegetation.Length)];
+                int width = (int)Math.Round(source.Width * scale);
+                int height = (int)Math.Round(source.Height * scale);
+                int offsetX = random.Next(Math.Max(1, TileSize - width + 1));
+                int x = position.X * TileSize + offsetX;
+                int y = (position.Y + 1) * TileSize - height;
+                decorations.Add((source, new Rectangle(x, y, width, height)));
+            }
+
+            return decorations.ToArray();
+        }
+
+        private bool IsInsideDirtPatch(Point position)
+        {
+            foreach (var patch in _dirtPatches)
+            {
+                if (patch.Contains(position))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void DrawTreeShadows()
+        {
+            foreach (var tree in _trees)
+            {
+                tree.DrawShadow(_spriteBatch, _shadowsTexture);
+            }
+        }
+
+        private void DrawVegetation()
+        {
+            foreach (var (source, destination) in _vegetation)
+            {
+                _spriteBatch.Draw(_vegetationTexture, destination, source, Color.White);
             }
         }
 
@@ -147,6 +300,32 @@ namespace TileQuest
             foreach (var rock in _rocks)
             {
                 rock.Draw(_spriteBatch);
+            }
+        }
+
+        private void DrawVillageStructures()
+        {
+            foreach (var structure in _map.VillageStructures)
+            {
+                Texture2D texture = structure.Type switch
+                {
+                    TileType.Church => _churchTexture,
+                    TileType.House1 => _house1Texture,
+                    TileType.House2 => _house2Texture,
+                    _ => null!,
+                };
+                if (texture == null)
+                {
+                    continue;
+                }
+
+                int footprintWidth = structure.Width * TileSize;
+                int width = (int)Math.Round(texture.Width * VillageStructure.RenderScale);
+                int height = (int)Math.Round(texture.Height * VillageStructure.RenderScale);
+                int x = structure.Position.X * TileSize + (footprintWidth - width) / 2;
+                int y = (structure.Position.Y + structure.Height) * TileSize - height;
+                var destination = new Rectangle(x, y, width, height);
+                _spriteBatch.Draw(texture, destination, Color.White);
             }
         }
 

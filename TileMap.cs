@@ -6,12 +6,25 @@ namespace TileQuest
 {
     public enum TileType
     {
-        Grass,     // base walkable ground
-        TallGrass, // walkable; decorative overlay for now
-        Tree,      // impassable obstacle
-        Rock,      // impassable obstacle
+        Grass,
+        TallGrass,
+        Tree,
+        Tree2,
+        Tree3,
+        Rock,
+        VillageHearth,
+        Church,
+        House1,
+        House2,
+        ShopNPC,
+        ForestExit,
         Wall       // sentinel only — the default for out-of-bounds coordinates;
                    // never actually placed on the generated map
+    }
+
+    public readonly record struct VillageStructure(TileType Type, Point Position, int Width, int Height)
+    {
+        public const float RenderScale = 1.5f;
     }
 
     // DSA note: tiles are stored in a Dictionary<Point, TileType> (hash table) rather
@@ -24,6 +37,7 @@ namespace TileQuest
         public int TileSize { get; }
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
+        public IReadOnlyList<VillageStructure> VillageStructures { get; }
 
         private readonly Dictionary<Point, TileType> _tiles;
 
@@ -38,8 +52,9 @@ namespace TileQuest
             // of the earlier BSP dungeon. GetTile/IsWalkable/AllTiles are
             // still the only surface Player and Game1 talk to, so nothing
             // outside this class needed to change for the swap.
-            _tiles = ForestGenerator.Generate(width, height, new Random(), out var spawnPoint);
+            _tiles = ForestGenerator.Generate(width, height, new Random(), out var spawnPoint, out var villageStructures);
             SpawnPoint = spawnPoint;
+            VillageStructures = villageStructures;
 
             // Verify every walkable tile is reachable from spawn via a graph +
             // BFS over the generated tiles. ForestGenerator already repairs
@@ -64,7 +79,7 @@ namespace TileQuest
         {
             var tile = GetTile(gridPos);
             if (tile != TileType.Grass && tile != TileType.TallGrass &&
-                tile != TileType.Tree && tile != TileType.Rock)
+                !DrawTree.IsTreeType(tile) && tile != TileType.Rock)
             {
                 return false;
             }
@@ -81,8 +96,8 @@ namespace TileQuest
                 {
                     var obstaclePosition = new Point(x, y);
                     var obstacleTile = GetTile(obstaclePosition);
-                    if (obstacleTile == TileType.Tree &&
-                        playerBounds.Intersects(DrawTree.GetCollisionBounds(obstaclePosition, TileSize)))
+                    if (DrawTree.IsTreeType(obstacleTile) &&
+                        playerBounds.Intersects(DrawTree.GetCollisionBounds(obstaclePosition, obstacleTile, TileSize)))
                     {
                         return false;
                     }

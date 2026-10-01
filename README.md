@@ -6,9 +6,9 @@
 > are copied next to the executable at build time (see `TileQuest.csproj`).
 >
 > **Sprite mapping:** `TileSprites.cs` holds the source-rectangle coordinates
-> for the trees (`Content/All free tiles.png`, 16x16 grid) and the rocks
-> (`Content/Rocks.png`). Grass, tall grass and the player use their own PNGs
-> (`grass.png`, `tallgrass_overlay.png`, `player.png`).
+> for the trees (`Tree1.png`, `Tree 2.png`, `Tree 3.png`) and rocks
+> (`Content/Rocks.png`). Ground uses `grass.png`, and the player uses
+> `player.png`.
 
 # TileQuest — Forest Village Defense
 A 2D grid-based action RPG built in MonoGame (C#) for a Data Structures &

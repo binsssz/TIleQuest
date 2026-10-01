@@ -9,13 +9,43 @@ namespace TileQuest
     //
     // Sheets in use:
     //   "All free tiles.png" -> trees (Trees below). 16x16 grid, free-form crops.
-    //   "Rocks.png"          -> rocks (Rocks below). Plain 16x16 grid cells.
-    //   "grass.png", "tallgrass_overlay.png", "player.png" are stand-alone
-    //   images; the player's 48x48 animation cells are cut up in Game1.DrawPlayer.
+    //   "Floors_Tiles.png"   -> grass ground + dirt patches (Grass, DirtPatch* below).
+    //   "Rocks.png"          -> small pebble clusters (Rocks below).
+    //   "Vegetation.png" and "Shadows.png" supply floor decoration sprites.
+    //   "player.png" is loaded as a stand-alone image.
+    //   The player's 48x48 animation cells are cut up in Game1.DrawPlayer.
     public static class TileSprites
     {
         // Both sheets are drawn on a 16px grid; TileSize scales it up.
         public const int GridSize = 16;
+        // Plain grass ground. This must be the SAME green the patch frame below
+        // is painted with (row 10 of the sheet), otherwise a lighter square
+        // halo shows up around every patch.
+        public static readonly Rectangle Grass = new(16, 160, GridSize, GridSize);
+
+        // Dirt patch = two layers drawn on the same spot:
+        //   1. DirtPatchFill: the flat brown tile, repeated under the whole patch.
+        //   2. DirtPatchFrame: a 5x5-tile GREEN frame whose middle is cut out in a
+        //      round, jagged shape. The cut-out is what lets the brown show through.
+        // The brown frames on the sheet (x 160-240) are the opposite thing: brown
+        // with a grass-shaped hole. They are for grass islands inside dirt, not
+        // for dirt on grass, so they are not used here.
+        // The frame's four corner tiles are transparent, so the fill is only laid
+        // under the plus-shaped footprint (see Game1.DrawDirtPatches).
+        public const int DirtPatchSizeInTiles = 5;
+        public static readonly Rectangle DirtPatchFill = new(176, 160, GridSize, GridSize);
+        public static readonly Rectangle DirtPatchFrame =
+            new(0, 0, DirtPatchSizeInTiles * GridSize, DirtPatchSizeInTiles * GridSize);
+        public static readonly Rectangle TreeShadow = new(0, 0, 112, 48);
+        public static readonly Rectangle[] Vegetation =
+        {
+            new(5, 165, 7, 9),
+            new(21, 164, 7, 10),
+            new(36, 166, 9, 6),
+            new(67, 164, 11, 8),
+            new(97, 177, 14, 15),
+            new(229, 176, 8, 16),
+        };
 
         // Tree sprites on "All free tiles.png", including trunk + shadow.
         // Only the narrow variants are used (22px wide = 1.4 tiles).
@@ -27,20 +57,13 @@ namespace TileQuest
             new(205, 81, 22, 42),  // short, light
         };
 
-        // Rock sprites on "Rocks.png": columns 4-11 of rows 0-1, one cell each.
-        public static readonly Rectangle[] Rocks = BuildRocks();
-
-        private static Rectangle[] BuildRocks()
+        // Small pebble clusters on "Rocks.png".
+        public static readonly Rectangle[] Rocks =
         {
-            var rocks = new List<Rectangle>();
-            for (int row = 0; row < 2; row++)
-            {
-                for (int column = 4; column < 12; column++)
-                {
-                    rocks.Add(new Rectangle(column * GridSize, row * GridSize, GridSize, GridSize));
-                }
-            }
-            return rocks.ToArray();
-        }
+            new(64, 32, GridSize, GridSize),
+            new(80, 32, GridSize, GridSize),
+            new(64, 48, GridSize, GridSize),
+            new(80, 48, GridSize, GridSize),
+        };
     }
 }

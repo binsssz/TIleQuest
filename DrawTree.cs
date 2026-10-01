@@ -10,27 +10,31 @@ namespace TileQuest
     // a single, separate sprite standing on exactly one blocked tile, and every
     // blocked tree tile has a sprite on it.
     //
-    // Only the narrow tree sprites are used (22px wide on the sheet = 1.4
-    // tiles), so the sprite is essentially the size of the one tile it blocks.
+    // Each tree type uses a separate sprite sheet and is normalized to the same
+    // approximate height before its size variation is applied.
     public sealed class DrawTree
     {
-        // The sheet is drawn on a 16px grid; TileSize scales it up.
+        // Source sheets use sprites sized to a 16px tile grid.
         public const int SourceTileSize = TileSprites.GridSize;
 
-        // Sprite coordinates live in TileSprites.cs.
-        private static readonly Rectangle[] Variants = TileSprites.Trees;
+        private static readonly Rectangle Tree1Source = new(0, 0, 48, 96);
+        private static readonly Rectangle Tree2Source = new(0, 0, 80, 128);
+        private static readonly Rectangle Tree3Source = new(0, 0, 112, 160);
 
         private static readonly float[] SizeVariants = { 0.8f, 1.2f, 1.6f };
+        private const float TreeSizeScale = 1.35f;
 
         private readonly Texture2D _texture;
         private readonly Rectangle _source;
+        private readonly TileType _type;
         private readonly Point _anchorTile;
         private readonly int _tileSize;
 
-        private DrawTree(Texture2D texture, Rectangle source, Point anchorTile, int tileSize)
+        private DrawTree(Texture2D texture, Rectangle source, TileType type, Point anchorTile, int tileSize)
         {
             _texture = texture;
             _source = source;
+            _type = type;
             _anchorTile = anchorTile;
             _tileSize = tileSize;
         }
@@ -42,10 +46,19 @@ namespace TileQuest
         // Which sprite a tree tile uses. Depends only on the position, so a
         // tree always looks the same and the generator can ask how big it
         // will be before placing it.
-        private static Rectangle VariantFor(Point tile)
+        public static bool IsTreeType(TileType type)
         {
-            int hash = unchecked(tile.X * 73856093 ^ tile.Y * 19349663);
-            return Variants[(hash & 0x7fffffff) % Variants.Length];
+            return type == TileType.Tree || type == TileType.Tree2 || type == TileType.Tree3;
+        }
+
+        private static Rectangle SourceFor(TileType type)
+        {
+            return type switch
+            {
+                TileType.Tree2 => Tree2Source,
+                TileType.Tree3 => Tree3Source,
+                _ => Tree1Source,
+            };
         }
 
         private static float ScaleFor(Point tile)
@@ -54,24 +67,24 @@ namespace TileQuest
             return SizeVariants[(hash & 0x7fffffff) % SizeVariants.Length];
         }
 
-        // Where the tree's sprite lands, in sheet pixels (16px per tile),
-        // with the sprite centred on the tile and its bottom on the tile's
-        // bottom edge. Used by ForestGenerator to keep trees from overlapping.
-        public static Rectangle GetBounds(Point tile)
+        private static float NormalizeScale(TileType type) => 54f * TreeSizeScale / SourceFor(type).Height;
+
+        // Used by ForestGenerator to avoid overlapping tree sprites.
+        public static Rectangle GetBounds(Point tile, TileType type)
         {
-            Rectangle source = VariantFor(tile);
-            float sizeScale = ScaleFor(tile);
-            int width = (int)Math.Round(source.Width * sizeScale);
-            int height = (int)Math.Round(source.Height * sizeScale);
+            Rectangle source = SourceFor(type);
+            float scale = NormalizeScale(type) * ScaleFor(tile);
+            int width = (int)Math.Round(source.Width * scale);
+            int height = (int)Math.Round(source.Height * scale);
             int x = tile.X * SourceTileSize + SourceTileSize / 2 - width / 2;
             int y = (tile.Y + 1) * SourceTileSize - height;
             return new Rectangle(x, y, width, height);
         }
 
-        public static Rectangle GetCollisionBounds(Point tile, int tileSize)
+        public static Rectangle GetCollisionBounds(Point tile, TileType type, int tileSize)
         {
-            Rectangle source = VariantFor(tile);
-            float scale = ScaleFor(tile) * tileSize / (float)SourceTileSize;
+            Rectangle source = SourceFor(type);
+            float scale = NormalizeScale(type) * ScaleFor(tile) * tileSize / (float)SourceTileSize;
             int width = (int)Math.Round(source.Width * 0.4f * scale);
             int height = (int)Math.Round(7f * scale);
             int left = tile.X * tileSize + tileSize / 2 - width / 2;
@@ -79,14 +92,21 @@ namespace TileQuest
             return new Rectangle(left, bottom - height, width, height);
         }
 
-        public static DrawTree[] CreateForest(TileMap map, Texture2D texture, int tileSize)
+        public static DrawTree[] CreateForest(
+            TileMap map, Texture2D tree1Texture, Texture2D tree2Texture, Texture2D tree3Texture, int tileSize)
         {
             var trees = new List<DrawTree>();
             foreach (var (position, tile) in map.AllTiles())
             {
-                if (tile == TileType.Tree)
+                if (IsTreeType(tile))
                 {
-                    trees.Add(new DrawTree(texture, VariantFor(position), position, tileSize));
+                    Texture2D texture = tile switch
+                    {
+                        TileType.Tree2 => tree2Texture,
+                        TileType.Tree3 => tree3Texture,
+                        _ => tree1Texture,
+                    };
+                    trees.Add(new DrawTree(texture, SourceFor(tile), tile, position, tileSize));
                 }
             }
 
@@ -103,7 +123,7 @@ namespace TileQuest
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            float scale = _tileSize / (float)SourceTileSize * ScaleFor(_anchorTile);
+            float scale = _tileSize / (float)SourceTileSize * NormalizeScale(_type) * ScaleFor(_anchorTile);
             int width = (int)Math.Round(_source.Width * scale);
             int height = (int)Math.Round(_source.Height * scale);
             int anchorX = _anchorTile.X * _tileSize + _tileSize / 2;
@@ -111,6 +131,16 @@ namespace TileQuest
             var destination = new Rectangle(anchorX - width / 2, anchorY - height, width, height);
 
             spriteBatch.Draw(_texture, destination, _source, Color.White);
+        }
+
+        public void DrawShadow(SpriteBatch spriteBatch, Texture2D shadowTexture)
+        {
+            int width = (int)Math.Round(_tileSize * 1.5f);
+            int height = (int)Math.Round(_tileSize * 0.6f);
+            int anchorX = _anchorTile.X * _tileSize + _tileSize / 2;
+            int y = BaseY - height / 2;
+            var destination = new Rectangle(anchorX - width / 2, y, width, height);
+            spriteBatch.Draw(shadowTexture, destination, TileSprites.TreeShadow, Color.White);
         }
     }
 }
