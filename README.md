@@ -24,6 +24,14 @@ with a traitorous Village Elder and a final assault on the forest lair.
 - **Day 4 / Night 4 — The Traitorous Elder:** Uncover secret documents revealing the Village Elder has been orchestrating the attacks to keep the villagers dependent on his power. Defeat the Elder in a 1-on-1 boss battle in the village square to unlock his **Arcane Burst** skill.
 - **Day 5 / Night 5 — The Final Stand:** Launch a final assault against the monster horde and lair using your newly acquired Arcane Burst skill to determine the fate of the village.
 ---
+## Village Map Layout
+The starting area is generated as a village map rather than a village embedded
+inside the forest. Its north side is anchored by the church, four homes sit in
+two rows to the east and west, and a central Village Hearth gives the village
+square a focal point. A broad dirt crossroads links the southern arrival road
+to the church and each home's frontage; small garden beds soften the edges of
+the residential rows. Forest generation is kept separate in `ForestGenerator.cs`.
+---
 ## Endings & Game State Machine
 The game features three distinct endings based on player actions and survival:
 1. **Ending A — True Victory (Hero of the Forest):** Defeat the final boss wave on Night 5. The village is saved, and your final score is recorded on the leaderboard.

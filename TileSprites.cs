@@ -22,6 +22,7 @@ namespace TileQuest
         // is painted with (row 10 of the sheet), otherwise a lighter square
         // halo shows up around every patch.
         public static readonly Rectangle Grass = new(16, 160, GridSize, GridSize);
+        public static readonly Rectangle Stone = new(256, 0, GridSize, GridSize);
 
         // Dirt patch = two layers drawn on the same spot:
         //   1. DirtPatchFill: the flat brown tile, repeated under the whole patch.

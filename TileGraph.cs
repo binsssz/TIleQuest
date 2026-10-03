@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework;
 namespace TileQuest
 {
     // DSA note: this is the "Connectivity check -> Graph + BFS" piece from the
-    // project plan. Walkable tiles (Grass and TallGrass) are nodes; two nodes
+    // project plan. Walkable tiles (Grass, TallGrass and DirtPath) are nodes; two nodes
     // are connected if they're orthogonally adjacent and both walkable. Built
     // as an adjacency list: Dictionary<Point, List<Point>>.
     //
@@ -53,7 +53,8 @@ namespace TileQuest
         // drift out of sync about which tile types are passable.
         private static bool IsWalkableType(TileType tile)
         {
-            return tile == TileType.Grass || tile == TileType.TallGrass;
+            return tile == TileType.Grass || tile == TileType.TallGrass ||
+                   tile == TileType.DirtPath || tile == TileType.VillageLantern;
         }
 
         public IReadOnlyList<Point> Neighbors(Point position)

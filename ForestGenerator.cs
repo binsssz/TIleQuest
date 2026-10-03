@@ -28,14 +28,6 @@ namespace TileQuest
             int width, int height, Random random, out Point spawnPoint,
             int treeClusters = 0, int rockClusters = 0, int tallGrassPatches = 0)
         {
-            return Generate(width, height, random, out spawnPoint, out _, treeClusters, rockClusters, tallGrassPatches);
-        }
-
-        public static Dictionary<Point, TileType> Generate(
-            int width, int height, Random random, out Point spawnPoint,
-            out List<VillageStructure> villageStructures,
-            int treeClusters = 0, int rockClusters = 0, int tallGrassPatches = 0)
-        {
             var tiles = new Dictionary<Point, TileType>();
 
             for (int x = 0; x < width; x++)
@@ -51,29 +43,14 @@ namespace TileQuest
             if (rockClusters <= 0) rockClusters = Math.Max(5, area / 200);
             if (tallGrassPatches <= 0) tallGrassPatches = Math.Max(4, area / 120);
 
-            var villageZone = BuildVillageZone(width, height);
-            var villageBounds = GetVillageZoneBounds(width, height);
-            ScatterGroves(tiles, width, height, random, treeClusters, villageZone, villageBounds);
+            ScatterGroves(tiles, width, height, random, treeClusters);
 
             var canopyZone = BuildCanopyZone(tiles);
-            canopyZone.UnionWith(villageZone);
             ScatterClusters(tiles, width, height, random, rockClusters, TileType.Rock, maxDepth: 2, spreadChance: 0.45, blocked: canopyZone);
             ScatterClusters(tiles, width, height, random, tallGrassPatches, TileType.TallGrass, maxDepth: 3, spreadChance: 0.60, blocked: canopyZone);
 
             spawnPoint = FindSpawnPoint(tiles, width, height);
             EnsureFullyConnected(tiles, spawnPoint, random);
-
-            villageStructures = CreateVillageStructures(width, height);
-            foreach (var structure in villageStructures)
-            {
-                for (int x = structure.Position.X; x < structure.Position.X + structure.Width; x++)
-                {
-                    for (int y = structure.Position.Y; y < structure.Position.Y + structure.Height; y++)
-                    {
-                        tiles[new Point(x, y)] = structure.Type;
-                    }
-                }
-            }
 
             return tiles;
         }
@@ -115,35 +92,22 @@ namespace TileQuest
         }
 
         private static void ScatterGroves(
-            Dictionary<Point, TileType> tiles, int width, int height, Random random, int groveCount,
-            HashSet<Point> blocked, Rectangle villageBounds)
+            Dictionary<Point, TileType> tiles, int width, int height, Random random, int groveCount)
         {
             var placedBounds = new List<Rectangle>();
-            int villageRingGroves = Math.Max(16, groveCount * 2);
-            for (int i = 0; i < villageRingGroves; i++)
+            for (int i = 0; i < groveCount; i++)
             {
-                var seed = RandomGrassTileNearVillage(tiles, width, height, random, blocked, villageBounds);
+                var seed = RandomGrassTile(tiles, width, height, random, blocked: null);
                 if (seed.HasValue)
                 {
-                    SpreadGrove(tiles, seed.Value, random, width, height, depth: 0, maxDepth: 3, spreadChance: 0.85, placedBounds, blocked);
-                }
-            }
-
-            int outerGroves = Math.Max(4, groveCount / 2);
-            for (int i = 0; i < outerGroves; i++)
-            {
-                var seed = RandomGrassTileOutsideVillageRing(tiles, width, height, random, blocked, villageBounds);
-                if (seed.HasValue)
-                {
-                    SpreadGrove(tiles, seed.Value, random, width, height, depth: 0, maxDepth: 2, spreadChance: 0.55, placedBounds, blocked);
+                    SpreadGrove(tiles, seed.Value, random, width, height, depth: 0, maxDepth: 3, spreadChance: 0.75, placedBounds);
                 }
             }
         }
 
         private static void SpreadGrove(
             Dictionary<Point, TileType> tiles, Point origin, Random random, int width, int height,
-            int depth, int maxDepth, double spreadChance, List<Rectangle> placedBounds,
-            HashSet<Point> blocked)
+            int depth, int maxDepth, double spreadChance, List<Rectangle> placedBounds)
         {
             if (depth > maxDepth)
             {
@@ -169,10 +133,6 @@ namespace TileQuest
             {
                 return;
             }
-            if (IntersectsBlockedTiles(spacedBounds, blocked))
-            {
-                return;
-            }
             foreach (var other in placedBounds)
             {
                 if (spacedBounds.Intersects(other))
@@ -188,26 +148,9 @@ namespace TileQuest
             {
                 if (random.NextDouble() < spreadChance)
                 {
-                    SpreadGrove(tiles, origin + GroveOffset(branch, random), random, width, height, depth + 1, maxDepth, spreadChance * 0.8, placedBounds, blocked);
+                    SpreadGrove(tiles, origin + GroveOffset(branch, random), random, width, height, depth + 1, maxDepth, spreadChance * 0.8, placedBounds);
                 }
             }
-        }
-
-        private static bool IntersectsBlockedTiles(Rectangle bounds, HashSet<Point> blocked)
-        {
-            int size = DrawTree.SourceTileSize;
-            for (int x = bounds.X / size; x <= (bounds.Right - 1) / size; x++)
-            {
-                for (int y = bounds.Y / size; y <= (bounds.Bottom - 1) / size; y++)
-                {
-                    if (blocked.Contains(new Point(x, y)))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
         }
 
         // Every tile a tree sprite covers, even partly.
@@ -331,95 +274,6 @@ namespace TileQuest
                 }
             }
             return null;
-        }
-
-        private static Point? RandomGrassTileNearVillage(
-            Dictionary<Point, TileType> tiles, int width, int height, Random random,
-            HashSet<Point> blocked, Rectangle villageBounds)
-        {
-            for (int attempt = 0; attempt < 100; attempt++)
-            {
-                var candidate = new Point(random.Next(width), random.Next(height));
-                int distance = DistanceFromVillage(candidate, villageBounds);
-                if (tiles[candidate] == TileType.Grass && !blocked.Contains(candidate) && distance > 0 && distance <= 10)
-                {
-                    return candidate;
-                }
-            }
-
-            return null;
-        }
-
-        private static Point? RandomGrassTileOutsideVillageRing(
-            Dictionary<Point, TileType> tiles, int width, int height, Random random,
-            HashSet<Point> blocked, Rectangle villageBounds)
-        {
-            for (int attempt = 0; attempt < 100; attempt++)
-            {
-                var candidate = new Point(random.Next(width), random.Next(height));
-                if (tiles[candidate] == TileType.Grass && !blocked.Contains(candidate) &&
-                    DistanceFromVillage(candidate, villageBounds) > 10)
-                {
-                    return candidate;
-                }
-            }
-
-            return null;
-        }
-
-        private static int DistanceFromVillage(Point tile, Rectangle villageBounds)
-        {
-            int dx = tile.X < villageBounds.Left
-                ? villageBounds.Left - tile.X
-                : tile.X >= villageBounds.Right ? tile.X - villageBounds.Right + 1 : 0;
-            int dy = tile.Y < villageBounds.Top
-                ? villageBounds.Top - tile.Y
-                : tile.Y >= villageBounds.Bottom ? tile.Y - villageBounds.Bottom + 1 : 0;
-            return Math.Max(dx, dy);
-        }
-
-        private static HashSet<Point> BuildVillageZone(int width, int height)
-        {
-            Rectangle bounds = GetVillageZoneBounds(width, height);
-            var zone = new HashSet<Point>();
-
-            for (int x = bounds.Left; x < bounds.Right; x++)
-            {
-                for (int y = bounds.Top; y < bounds.Bottom; y++)
-                {
-                    zone.Add(new Point(x, y));
-                }
-            }
-
-            return zone;
-        }
-
-        private static Rectangle GetVillageZoneBounds(int width, int height)
-        {
-            int zoneWidth = Math.Min(width, Math.Max(12, width / 3));
-            int zoneHeight = Math.Min(height, Math.Max(24, height / 3));
-            return new Rectangle((width - zoneWidth) / 2, (height - zoneHeight) / 2, zoneWidth, zoneHeight);
-        }
-
-        private static List<VillageStructure> CreateVillageStructures(int width, int height)
-        {
-            Rectangle zone = GetVillageZoneBounds(width, height);
-            int house1Left = zone.Left + 1;
-            int house1Right = zone.Right - 5;
-            int house1FirstRow = zone.Top + 6;
-            int house1SecondRow = zone.Top + 12;
-            int house2Row = zone.Bottom - 6;
-
-            return new List<VillageStructure>
-            {
-                new(TileType.Church, new Point(zone.Left + (zone.Width - 6) / 2, zone.Top), 6, 6),
-                new(TileType.House1, new Point(house1Left, house1FirstRow), 4, 6),
-                new(TileType.House1, new Point(house1Right, house1FirstRow), 4, 6),
-                new(TileType.House1, new Point(house1Left, house1SecondRow), 4, 6),
-                new(TileType.House1, new Point(house1Right, house1SecondRow), 4, 6),
-                new(TileType.House2, new Point(zone.Left + 2, house2Row), 6, 6),
-                new(TileType.House2, new Point(zone.Right - 8, house2Row), 6, 6),
-            };
         }
 
         // --- Spawn point -----------------------------------------------------------
