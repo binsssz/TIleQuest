@@ -33,12 +33,13 @@ namespace TileQuest
         private Texture2D _pixelTexture = null!;
         private Texture2D _bonfireTexture = null!;
         private Texture2D _bonfireFlameTexture = null!;
+        private Texture2D _lampTexture = null!;
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
         private readonly Dictionary<PropSheet, Texture2D> _propSheets = new();
         private Texture2D _wellTexture = null!;
         private DrawProp[] _props = Array.Empty<DrawProp>();
-        // Trees and props together, back-to-front, so the player can walk
+        // Trees, props, and structures together, back-to-front, so the player can walk
         // between them (see DrawTreesAndPlayer).
         private IDepthSorted[] _depthSorted = Array.Empty<IDepthSorted>();
         private bool _showHitboxes; // F3 debug overlay, see DrawHitboxes
@@ -62,6 +63,8 @@ namespace TileQuest
         private const float BonfireFramesPerSecond = 8f;
         private const int BonfireFlameFrameWidth = 32;
         private const int BonfireFlameFrameHeight = 48;
+        private const int LampHeightTiles = 4;
+        private static readonly Rectangle LampSource = new(45, 17, 40, 94);
 
         // Same 32x32 crop of every cell, so the character doesn't jitter
         // between frames. The bottom edge is where the feet/shadow sit.
@@ -116,6 +119,7 @@ namespace TileQuest
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
             _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
+            _lampTexture = LoadTexture("Icons/Lamp.png");
             _propSheets[PropSheet.Rocks] = _rocksTexture;
             _propSheets[PropSheet.Vegetation] = _vegetationTexture;
             foreach (PropSheet sheet in new[] { PropSheet.Tools, PropSheet.Furniture, PropSheet.Farm })
@@ -141,8 +145,17 @@ namespace TileQuest
             _trees = DrawTree.CreateForest(_map, _tree1Texture, _tree2Texture, _tree3Texture, TileSize);
             _rocks = DrawRock.CreateFor(_map, _rocksTexture, TileSize);
             _props = DrawProp.CreateFor(_map, _propSheets, TileSize);
-            // OrderBy is stable, so trees keep their left-to-right order within a row.
-            _depthSorted = _trees.Cast<IDepthSorted>().Concat(_props).OrderBy(item => item.BaseY).ToArray();
+            IEnumerable<IDepthSorted> depthSorted = _trees.Cast<IDepthSorted>().Concat(_props);
+            if (_map.MapType == WorldMapType.Village)
+            {
+                depthSorted = depthSorted.Concat(
+                    _map.VillageStructures.Select(structure => new DepthSortedStructure(this, structure, TileSize)))
+                    .Concat(_map.AllTiles()
+                        .Where(entry => entry.Value == TileType.VillageLantern)
+                        .Select(entry => new DepthSortedLamp(_lampTexture, entry.Key, TileSize)));
+            }
+            // OrderBy is stable, so trees and props keep their established order within a row.
+            _depthSorted = depthSorted.OrderBy(item => item.BaseY).ToArray();
         }
 
         private bool WasPressed(KeyboardState keyboard, Keys key)
@@ -245,9 +258,7 @@ namespace TileQuest
             DrawVillagePlants();
             DrawTreeShadows();
             DrawRocks();
-            DrawVillageStructures(gameTime);
-            DrawVillageLanterns();
-            DrawTreesAndPlayer();
+            DrawTreesAndPlayer(gameTime);
 
             if (_showHitboxes)
             {
@@ -498,40 +509,37 @@ namespace TileQuest
             }
         }
 
-        private void DrawVillageStructures(GameTime gameTime)
+        private void DrawVillageStructure(VillageStructure structure, SpriteBatch spriteBatch, GameTime gameTime)
         {
-            foreach (var structure in _map.VillageStructures)
+            if (structure.Type == TileType.VillageHearth)
             {
-                if (structure.Type == TileType.VillageHearth)
-                {
-                    DrawVillageHearth(structure, gameTime);
-                    continue;
-                }
-
-                Texture2D texture = structure.Type switch
-                {
-                    TileType.Church => _churchTexture,
-                    TileType.House1 => _house1Texture,
-                    TileType.House2 => _house2Texture,
-                    TileType.Well => _wellTexture,
-                    _ => null!,
-                };
-                if (texture == null)
-                {
-                    continue;
-                }
-
-                int footprintWidth = structure.Width * TileSize;
-                int width = (int)Math.Round(texture.Width * VillageStructure.RenderScale);
-                int height = (int)Math.Round(texture.Height * VillageStructure.RenderScale);
-                int x = structure.Position.X * TileSize + (footprintWidth - width) / 2;
-                int y = (structure.Position.Y + structure.Height) * TileSize - height;
-                var destination = new Rectangle(x, y, width, height);
-                _spriteBatch.Draw(texture, destination, Color.White);
+                DrawVillageHearth(structure, spriteBatch, gameTime);
+                return;
             }
+
+            Texture2D texture = structure.Type switch
+            {
+                TileType.Church => _churchTexture,
+                TileType.House1 => _house1Texture,
+                TileType.House2 => _house2Texture,
+                TileType.Well => _wellTexture,
+                _ => null!,
+            };
+            if (texture == null)
+            {
+                return;
+            }
+
+            int footprintWidth = structure.Width * TileSize;
+            int width = (int)Math.Round(texture.Width * VillageStructure.RenderScale);
+            int height = (int)Math.Round(texture.Height * VillageStructure.RenderScale);
+            int x = structure.Position.X * TileSize + (footprintWidth - width) / 2;
+            int y = (structure.Position.Y + structure.Height) * TileSize - height;
+            var destination = new Rectangle(x, y, width, height);
+            spriteBatch.Draw(texture, destination, Color.White);
         }
 
-        private void DrawVillageHearth(VillageStructure hearth, GameTime gameTime)
+        private void DrawVillageHearth(VillageStructure hearth, SpriteBatch spriteBatch, GameTime gameTime)
         {
             int frame = (int)(gameTime.TotalGameTime.TotalSeconds * BonfireFramesPerSecond) % BonfireFrameCount;
             var source = new Rectangle(frame * BonfireFrameSize, 0, BonfireFrameSize, BonfireFrameSize);
@@ -540,7 +548,7 @@ namespace TileQuest
                 hearth.Position.Y * TileSize,
                 hearth.Width * TileSize,
                 hearth.Height * TileSize);
-            _spriteBatch.Draw(_bonfireTexture, destination, source, Color.White);
+            spriteBatch.Draw(_bonfireTexture, destination, source, Color.White);
 
             var flameSource = new Rectangle(
                 frame * BonfireFlameFrameWidth,
@@ -555,26 +563,7 @@ namespace TileQuest
                 destination.Y - TileSize / 2,
                 flameWidth,
                 flameHeight);
-            _spriteBatch.Draw(_bonfireFlameTexture, flameDestination, flameSource, Color.White);
-        }
-
-        private void DrawVillageLanterns()
-        {
-            foreach (var (position, tile) in _map.AllTiles())
-            {
-                if (tile != TileType.VillageLantern)
-                {
-                    continue;
-                }
-
-                int x = position.X * TileSize;
-                int y = position.Y * TileSize;
-                _spriteBatch.Draw(_pixelTexture, new Rectangle(x + 3, y + 3, 26, 26), new Color(255, 166, 64, 40));
-                _spriteBatch.Draw(_pixelTexture, new Rectangle(x + 9, y + 8, 14, 17), new Color(92, 61, 42));
-                _spriteBatch.Draw(_pixelTexture, new Rectangle(x + 11, y + 10, 10, 8), new Color(255, 190, 74));
-                _spriteBatch.Draw(_pixelTexture, new Rectangle(x + 13, y + 12, 6, 4), new Color(255, 239, 166));
-                _spriteBatch.Draw(_pixelTexture, new Rectangle(x + 14, y + 24, 4, 6), new Color(78, 58, 43));
-            }
+            spriteBatch.Draw(_bonfireFlameTexture, flameDestination, flameSource, Color.White);
         }
 
         // Depth sorting: trees are sorted top-to-bottom, so draw the ones whose
@@ -582,14 +571,14 @@ namespace TileQuest
         // the trees lower on the screen. That way the player walks in front of
         // a tree when south of it and behind it (hidden by the canopy) when
         // north of it.
-        private void DrawTreesAndPlayer()
+        private void DrawTreesAndPlayer(GameTime gameTime)
         {
             int playerFootY = (int)_player.PixelPosition.Y + TileSize;
 
             int i = 0;
             while (i < _depthSorted.Length && _depthSorted[i].BaseY <= playerFootY)
             {
-                _depthSorted[i].Draw(_spriteBatch);
+                _depthSorted[i].Draw(_spriteBatch, gameTime);
                 i++;
             }
 
@@ -597,7 +586,53 @@ namespace TileQuest
 
             for (; i < _depthSorted.Length; i++)
             {
-                _depthSorted[i].Draw(_spriteBatch);
+                _depthSorted[i].Draw(_spriteBatch, gameTime);
+            }
+        }
+
+        private sealed class DepthSortedStructure : IDepthSorted
+        {
+            private readonly Game1 _game;
+            private readonly VillageStructure _structure;
+
+            public DepthSortedStructure(Game1 game, VillageStructure structure, int tileSize)
+            {
+                _game = game;
+                _structure = structure;
+                BaseY = (structure.Position.Y + structure.Height) * tileSize;
+            }
+
+            public int BaseY { get; }
+
+            public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
+            {
+                _game.DrawVillageStructure(_structure, spriteBatch, gameTime);
+            }
+        }
+
+        private sealed class DepthSortedLamp : IDepthSorted
+        {
+            private readonly Texture2D _texture;
+            private readonly Point _tile;
+            private readonly int _tileSize;
+
+            public DepthSortedLamp(Texture2D texture, Point tile, int tileSize)
+            {
+                _texture = texture;
+                _tile = tile;
+                _tileSize = tileSize;
+                BaseY = (_tile.Y + 1) * _tileSize;
+            }
+
+            public int BaseY { get; }
+
+            public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
+            {
+                int height = LampHeightTiles * _tileSize;
+                int width = (int)Math.Round(height * LampSource.Width / (float)LampSource.Height);
+                int centerX = _tile.X * _tileSize + _tileSize / 2;
+                var destination = new Rectangle(centerX - width / 2, BaseY - height, width, height);
+                spriteBatch.Draw(_texture, destination, LampSource, Color.White);
             }
         }
 

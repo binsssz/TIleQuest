@@ -17,7 +17,7 @@ namespace TileQuest
         private readonly record struct Building(TileType Type, int Width, int Height);
 
         // Footprint sizes are fixed per building because the sprites in
-        // Game1.DrawVillageStructures are positioned from them.
+        // Game1.DrawVillageStructure are positioned from them.
         private static readonly Dictionary<char, Building> Buildings = new()
         {
             ['C'] = new Building(TileType.Church, 6, 6),

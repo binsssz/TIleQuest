@@ -2267,3 +2267,5 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\validation\Debu
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\validation\Debug\net8.0\runtimes\osx\native\libSDL2-2.0.0.dylib
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\validation\Debug\net8.0\runtimes\win-arm64\native\SDL2.dll
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\validation\Debug\net8.0\runtimes\win-x64\native\SDL2.dll
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\validation\Debug\net8.0\Content\Icons\Lamp.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\Icons\Lamp.png

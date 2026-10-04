@@ -7,14 +7,14 @@ namespace TileQuest
 {
     // Anything that has to be drawn in front of or behind the player depending
     // on how far down the screen its base is. Game1 keeps one list of these
-    // (trees and props together), sorted by BaseY, and draws the player in the
-    // right gap - see Game1.DrawTreesAndPlayer.
+    // (trees, props, and structures together), sorted by BaseY, and draws the
+    // player in the right gap - see Game1.DrawTreesAndPlayer.
     public interface IDepthSorted
     {
         // Y pixel of the bottom of the tile the object stands on.
         int BaseY { get; }
 
-        void Draw(SpriteBatch spriteBatch);
+        void Draw(SpriteBatch spriteBatch, GameTime gameTime);
     }
 
     // One sprite for one VillageProp. The tile is fully blocked (TileType.Prop
@@ -49,7 +49,7 @@ namespace TileQuest
             return props.ToArray();
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
         {
             float scale = _tileSize / (float)TileSprites.GridSize;
             int width = (int)Math.Round(_source.Width * scale);

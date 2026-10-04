@@ -121,7 +121,7 @@ namespace TileQuest
             return trees.ToArray();
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
         {
             float scale = _tileSize / (float)SourceTileSize * NormalizeScale(_type) * ScaleFor(_anchorTile);
             int width = (int)Math.Round(_source.Width * scale);
