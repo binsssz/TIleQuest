@@ -3,12 +3,18 @@
 > loaded directly at runtime (`TitleContainer.OpenStream` +
 > `Texture2D.FromStream`) rather than through the Content Pipeline, so there is
 > no `Content.mgcb` and no `dotnet-mgcb` tool to install. The PNGs in `Content/`
-> are copied next to the executable at build time (see `TileQuest.csproj`).
+> and its category subfolders are copied next to the executable at build time
+> (see `TileQuest.csproj`).
 >
-> **Sprite mapping:** `TileSprites.cs` holds the source-rectangle coordinates
-> for the trees (`Tree1.png`, `Tree 2.png`, `Tree 3.png`) and rocks
-> (`Content/Rocks.png`). Ground uses `grass.png`, and the player uses
-> `player.png`.
+> **Content organization:** top-level loose assets are grouped into folders such
+> as `Buildings/`, `Fences/`, `Trees/`, `Vegetation/`, `Rocks/`, and
+> `Ground/` (with `Details/`, `Terrain/`, and `Tiles/`). Existing collections
+> such as `Entities/`, `Environment/`, `Icons/`, `MockUps/`, and `Weapons/`
+> keep their existing structure.
+>
+> **Sprite mapping:** `TileSprites.cs` holds source-rectangle coordinates for
+> the tree and rock atlases. Ground and player textures are in `Ground/` and
+> `Characters/`, respectively.
 
 # TileQuest — Forest Village Defense
 A 2D grid-based action RPG built in MonoGame (C#) for a Data Structures &
@@ -31,6 +37,16 @@ two rows to the east and west, and a central Village Hearth gives the village
 square a focal point. A broad dirt crossroads links the southern arrival road
 to the church and each home's frontage; small garden beds soften the edges of
 the residential rows. Forest generation is kept separate in `ForestGenerator.cs`.
+
+**Editing the village:** the village is a hand-editable text grid in `VillageLayout.cs` (one character per tile, 36x28, legend and coordinate ruler included). `VillageGenerator.cs` reads and validates it on every launch: layout mistakes stop the game with a list of problems and coordinates, and a `[VillageLayout] OK` line is printed when it passes.
+
+Village ground defaults to grass. Use `=` for cracked roads and `P` for
+walkable stone paving; a `P` beside a road draws as a thin sidewalk strip,
+while other `P` tiles remain fully paved. Building footprints (`C`, `1`, `2`,
+and `H`) are blocked, with stone automatically drawn only under their bottom
+row. Building collision covers the solid lower wall sections rather than the
+entire roof silhouette. House 2 uses separate colliders for its front and
+side-wall sections.
 ---
 ## Endings & Game State Machine
 The game features three distinct endings based on player actions and survival:
@@ -76,4 +92,6 @@ dotnet run
 On startup the console prints a `=== DSA module self-check ===` report
 (`DsaDemo.cs`) and a `[TileGraph]` map connectivity check before the game
 window opens. Every line should read `PASS` / `OK`. Controls: WASD or arrow keys
-to move, Esc to quit.
+to move. Walk onto the marked gate at the south edge of the village or forest
+to get a travel prompt; press Y or Enter to travel, N or Esc to stay. Esc
+outside a travel prompt quits the game.

@@ -12,7 +12,7 @@ namespace TileQuest
     //
     // Each tree type uses a separate sprite sheet and is normalized to the same
     // approximate height before its size variation is applied.
-    public sealed class DrawTree
+    public sealed class DrawTree : IDepthSorted
     {
         // Source sheets use sprites sized to a 16px tile grid.
         public const int SourceTileSize = TileSprites.GridSize;

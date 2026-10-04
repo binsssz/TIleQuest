@@ -51,10 +51,13 @@ namespace TileQuest
 
         // Kept in one place so TileGraph and TileMap.IsWalkable can't quietly
         // drift out of sync about which tile types are passable.
-        private static bool IsWalkableType(TileType tile)
+        public static bool IsWalkableType(TileType tile)
         {
             return tile == TileType.Grass || tile == TileType.TallGrass ||
-                   tile == TileType.DirtPath || tile == TileType.VillageLantern;
+                   tile == TileType.DirtPath || tile == TileType.VillageLantern ||
+                   tile == TileType.VillagePaving ||
+                   tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
+                   tile == TileType.ForestExit || tile == TileType.VillageExit;
         }
 
         public IReadOnlyList<Point> Neighbors(Point position)

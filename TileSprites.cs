@@ -8,11 +8,11 @@ namespace TileQuest
     // of SpriteBatch.Draw. Nothing in this class loads or draws anything.
     //
     // Sheets in use:
-    //   "All free tiles.png" -> trees (Trees below). 16x16 grid, free-form crops.
-    //   "Floors_Tiles.png"   -> grass ground + dirt patches (Grass, DirtPatch* below).
-    //   "Rocks.png"          -> small pebble clusters (Rocks below).
-    //   "Vegetation.png" and "Shadows.png" supply floor decoration sprites.
-    //   "player.png" is loaded as a stand-alone image.
+    //   "Tilesets/All free tiles.png" -> free-form tree crops (Trees below).
+    //   "Ground/Tiles/Floors_Tiles.png" -> grass ground + dirt patch textures.
+    //   "Rocks/Rocks.png" -> small pebble clusters (Rocks below).
+    //   "Vegetation/Vegetation.png" and "Shadows/Shadows.png" supply decorations.
+    //   "Characters/player.png" is loaded as a stand-alone image.
     //   The player's 48x48 animation cells are cut up in Game1.DrawPlayer.
     public static class TileSprites
     {
@@ -23,6 +23,7 @@ namespace TileQuest
         // halo shows up around every patch.
         public static readonly Rectangle Grass = new(16, 160, GridSize, GridSize);
         public static readonly Rectangle Stone = new(256, 0, GridSize, GridSize);
+        public static readonly Rectangle BrightCrackedRoad = new(96, 160, GridSize, GridSize);
 
         // Dirt patch = two layers drawn on the same spot:
         //   1. DirtPatchFill: the flat brown tile, repeated under the whole patch.
@@ -48,7 +49,27 @@ namespace TileQuest
             new(229, 176, 8, 16),
         };
 
-        // Tree sprites on "All free tiles.png", including trunk + shadow.
+        // Tiny grey pebbles on "Rocks/Rocks.png", sprinkled over the village grass
+        // as walkable decoration (Game1.DrawVillageGroundDetails).
+        public static readonly Rectangle[] FloorPebbles =
+        {
+            new(100, 71, 7, 4),
+            new(116, 70, 7, 5),
+            new(132, 70, 8, 6),
+            new(147, 69, 9, 7),
+        };
+
+        // Reed / fern clumps on "Vegetation/Vegetation.png", drawn on village
+        // tall-grass tiles.
+        public static readonly Rectangle[] GrassTufts =
+        {
+            new(112, 166, 32, 26),
+            new(145, 166, 15, 26),
+            new(97, 177, 14, 15),
+            new(164, 176, 9, 16),
+        };
+
+        // Tree sprites on "Tilesets/All free tiles.png", including trunk + shadow.
         // Only the narrow variants are used (22px wide = 1.4 tiles).
         public static readonly Rectangle[] Trees =
         {
@@ -58,7 +79,7 @@ namespace TileQuest
             new(205, 81, 22, 42),  // short, light
         };
 
-        // Small pebble clusters on "Rocks.png".
+        // Small pebble clusters on "Rocks/Rocks.png".
         public static readonly Rectangle[] Rocks =
         {
             new(64, 32, GridSize, GridSize),

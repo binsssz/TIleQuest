@@ -42,6 +42,17 @@ namespace TileQuest
             _speed = tilesPerSecond * tileSize;
         }
 
+        public void Teleport(Point gridPosition)
+        {
+            GridPosition = gridPosition;
+            PixelPosition = new Vector2(gridPosition.X * _tileSize, gridPosition.Y * _tileSize);
+            _targetPixelPosition = PixelPosition;
+            IsMoving = false;
+            IsWalking = false;
+            AnimationTime = 0f;
+            _idleSeconds = 0f;
+        }
+
         public void Update(GameTime gameTime, TileMap map, KeyboardState keyboard)
         {
             float deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;

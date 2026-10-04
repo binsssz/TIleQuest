@@ -19,7 +19,13 @@ namespace TileQuest
         House2,
         ShopNPC,
         ForestExit,
+        VillageExit,
         VillageLantern,
+        VillagePaving,
+        VillageFlower,
+        VillageGarden,
+        Prop,      // any PropCatalog prop (boulder, dead tree, bush...): blocked
+        Well,      // village well structure: blocked
         Wall       // sentinel only — the default for out-of-bounds coordinates;
                    // never actually placed on the generated map
     }
@@ -27,7 +33,77 @@ namespace TileQuest
     public readonly record struct VillageStructure(TileType Type, Point Position, int Width, int Height)
     {
         public const float RenderScale = 2f;
+
+        public Rectangle[] GetCollisionBounds(int tileSize)
+        {
+            Point spriteSize = Type switch
+            {
+                TileType.Church => new Point(128, 112),
+                TileType.House1 => new Point(80, 112),
+                TileType.House2 => new Point(128, 112),
+                _ => Point.Zero,
+            };
+            if (spriteSize == Point.Zero)
+            {
+                return Array.Empty<Rectangle>();
+            }
+
+            int spriteWidth = (int)Math.Round(spriteSize.X * RenderScale);
+            int spriteHeight = (int)Math.Round(spriteSize.Y * RenderScale);
+            int spriteX = Position.X * tileSize +
+                          (Width * tileSize - spriteWidth) / 2;
+            int spriteY = (Position.Y + Height) * tileSize - spriteHeight;
+
+            // Solid areas in sprite pixels, measured from the opaque pixels of
+            // each PNG: the wall band only, from the row where the walls come
+            // out from under the roof overhang down to where they meet the
+            // ground. Roof, chimney and the steps below the door stay walkable.
+            // Re-measure these if a building PNG is redrawn; press F3 in game
+            // to draw them over the sprites and check.
+            Rectangle[] solidAreas = Type switch
+            {
+                // CHURCH.png: both side wings and the centre block share one
+                // wall band (y 64..97); only the door porch reaches down to y 104.
+                TileType.Church => new[]
+                {
+                    new Rectangle(2, 64, 124, 33),
+                    new Rectangle(31, 97, 66, 7),
+                },
+                // HOUSE 1.png: walls x 5..75, y 73..104.
+                TileType.House1 => new[] { new Rectangle(5, 73, 70, 31) },
+                // HOUSE 2.png: the main walls (x 5..77, y 73..104) and the lower
+                // side wing (x 77..126), whose wall ends at y 89 - below that
+                // is open grass.
+                TileType.House2 => new[]
+                {
+                    new Rectangle(5, 73, 72, 31),
+                    new Rectangle(77, 64, 49, 25),
+                },
+                _ => Array.Empty<Rectangle>(),
+            };
+
+            var bounds = new Rectangle[solidAreas.Length];
+            for (int i = 0; i < solidAreas.Length; i++)
+            {
+                Rectangle area = solidAreas[i];
+                bounds[i] = new Rectangle(
+                    spriteX + (int)Math.Round(area.X * RenderScale),
+                    spriteY + (int)Math.Round(area.Y * RenderScale),
+                    (int)Math.Round(area.Width * RenderScale),
+                    (int)Math.Round(area.Height * RenderScale));
+            }
+
+            return bounds;
+        }
     }
+
+    public enum WorldMapType
+    {
+        Village,
+        Forest
+    }
+
+    public readonly record struct MapTravel(WorldMapType Destination, Point ArrivalPoint);
 
     // DSA note: tiles are stored in a Dictionary<Point, TileType> (hash table) rather
     // than a bounds-checked 2D array, so lookups by grid coordinate are O(1). This is
@@ -37,27 +113,60 @@ namespace TileQuest
         public int Width { get; }
         public int Height { get; }
         public int TileSize { get; }
+        public WorldMapType MapType { get; }
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
+        public IReadOnlyList<VillageProp> VillageProps { get; }
 
         private readonly Dictionary<Point, TileType> _tiles;
+        private readonly Dictionary<Point, MapTravel> _travelPoints = new();
 
         public TileMap(int width, int height, int tileSize)
+            : this(width, height, tileSize, WorldMapType.Village)
+        {
+        }
+
+        public TileMap(int width, int height, int tileSize, WorldMapType mapType)
         {
             Width = width;
             Height = height;
             TileSize = tileSize;
+            MapType = mapType;
 
-            _tiles = VillageGenerator.Generate(width, height, out var spawnPoint, out var villageStructures);
-            SpawnPoint = spawnPoint;
-            VillageStructures = villageStructures;
+            if (mapType == WorldMapType.Village)
+            {
+                _tiles = VillageGenerator.Generate(
+                    width, height, out var spawnPoint, out var villageStructures, out var villageProps);
+                SpawnPoint = spawnPoint;
+                VillageStructures = villageStructures;
+                VillageProps = villageProps;
+                AddTravelPoint(
+                    new Point(width / 2, height - 1),
+                    TileType.ForestExit,
+                    WorldMapType.Forest,
+                    new Point(width / 2, height - 2));
+            }
+            else
+            {
+                _tiles = ForestGenerator.Generate(width, height, new Random(), out _);
+                SpawnPoint = new Point(width / 2, height - 2);
+                VillageStructures = Array.Empty<VillageStructure>();
+                VillageProps = Array.Empty<VillageProp>();
+                for (int x = width / 2 - 2; x <= width / 2 + 2; x++)
+                {
+                    for (int y = height - 4; y < height; y++)
+                    {
+                        _tiles[new Point(x, y)] = TileType.Grass;
+                    }
+                }
+                AddTravelPoint(
+                    new Point(width / 2, height - 1),
+                    TileType.VillageExit,
+                    WorldMapType.Village,
+                    new Point(width / 2, height - 2));
+            }
 
-            // Verify every walkable tile is reachable from spawn via a graph +
-            // BFS over the generated tiles. ForestGenerator already repairs
-            // any isolated pockets internally, so this should always report
-            // fully connected — it's a second, independent verification layer
-            // at map-initialization time.
             var graph = new TileGraph(_tiles);
             IsFullyConnected = graph.IsFullyConnected(SpawnPoint, out var unreachableCount);
             Console.WriteLine(IsFullyConnected
@@ -65,19 +174,31 @@ namespace TileQuest
                 : $"[TileGraph] BFS connectivity check: WARNING — {unreachableCount} tile(s) unreachable from spawn.");
         }
 
+        public bool TryGetTravel(Point position, out MapTravel travel)
+        {
+            return _travelPoints.TryGetValue(position, out travel);
+        }
+
         public TileType GetTile(Point gridPos)
         {
             return _tiles.TryGetValue(gridPos, out var tile) ? tile : TileType.Wall;
         }
 
-        // Tree and rock anchors are checked against their collision bounds
-        // below, so their visible size controls the space they occupy.
+        // Building, tree and rock anchors are checked against their sprite
+        // collision bounds below, so their visible size controls occupied space.
         public bool IsWalkable(Point gridPos)
         {
             var tile = GetTile(gridPos);
-            if (tile != TileType.Grass && tile != TileType.TallGrass && tile != TileType.DirtPath &&
-                tile != TileType.VillageLantern &&
-                !DrawTree.IsTreeType(tile) && tile != TileType.Rock)
+            bool isWalkableGround =
+                tile == TileType.Grass || tile == TileType.TallGrass || tile == TileType.DirtPath ||
+                tile == TileType.ForestExit || tile == TileType.VillageExit ||
+                tile == TileType.VillageLantern || tile == TileType.VillagePaving ||
+                tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
+                DrawTree.IsTreeType(tile) || tile == TileType.Rock;
+            bool isBuildingSprite = tile == TileType.Church ||
+                                    tile == TileType.House1 ||
+                                    tile == TileType.House2;
+            if (!isWalkableGround && !isBuildingSprite)
             {
                 return false;
             }
@@ -87,6 +208,17 @@ namespace TileQuest
                 gridPos.Y * TileSize + TileSize * 2 / 3,
                 TileSize / 2,
                 TileSize / 4);
+
+            foreach (var structure in VillageStructures)
+            {
+                foreach (Rectangle collisionBounds in structure.GetCollisionBounds(TileSize))
+                {
+                    if (playerBounds.Intersects(collisionBounds))
+                    {
+                        return false;
+                    }
+                }
+            }
 
             for (int x = gridPos.X - 1; x <= gridPos.X + 1; x++)
             {
@@ -111,5 +243,11 @@ namespace TileQuest
         }
 
         public IEnumerable<KeyValuePair<Point, TileType>> AllTiles() => _tiles;
+
+        private void AddTravelPoint(Point position, TileType tile, WorldMapType destination, Point arrivalPoint)
+        {
+            _tiles[position] = tile;
+            _travelPoints.Add(position, new MapTravel(destination, arrivalPoint));
+        }
     }
 }

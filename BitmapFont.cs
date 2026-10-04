@@ -1,0 +1,57 @@
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace TileQuest
+{
+    internal static class BitmapFont
+    {
+        private static readonly Dictionary<char, string[]> Glyphs = new()
+        {
+            ['A'] = new[] { "01110", "10001", "10001", "11111", "10001", "10001", "10001" },
+            ['E'] = new[] { "11111", "10000", "10000", "11110", "10000", "10000", "11111" },
+            ['F'] = new[] { "11111", "10000", "10000", "11110", "10000", "10000", "10000" },
+            ['G'] = new[] { "01111", "10000", "10000", "10111", "10001", "10001", "01111" },
+            ['H'] = new[] { "10001", "10001", "10001", "11111", "10001", "10001", "10001" },
+            ['I'] = new[] { "11111", "00100", "00100", "00100", "00100", "00100", "11111" },
+            ['L'] = new[] { "10000", "10000", "10000", "10000", "10000", "10000", "11111" },
+            ['N'] = new[] { "10001", "11001", "10101", "10011", "10001", "10001", "10001" },
+            ['O'] = new[] { "01110", "10001", "10001", "10001", "10001", "10001", "01110" },
+            ['R'] = new[] { "11110", "10001", "10001", "11110", "10100", "10010", "10001" },
+            ['S'] = new[] { "01111", "10000", "10000", "01110", "00001", "00001", "11110" },
+            ['T'] = new[] { "11111", "00100", "00100", "00100", "00100", "00100", "00100" },
+            ['V'] = new[] { "10001", "10001", "10001", "10001", "10001", "01010", "00100" },
+            ['Y'] = new[] { "10001", "10001", "01010", "00100", "00100", "00100", "00100" },
+            ['='] = new[] { "00000", "11111", "00000", "11111", "00000", "00000", "00000" },
+            ['?'] = new[] { "01110", "10001", "00001", "00010", "00100", "00000", "00100" },
+            [' '] = new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000" }
+        };
+
+        public static void Draw(
+            SpriteBatch spriteBatch, Texture2D pixel, string text, Point position, int scale, Color color)
+        {
+            int cursorX = position.X;
+            foreach (char character in text)
+            {
+                if (Glyphs.TryGetValue(character, out var rows))
+                {
+                    for (int y = 0; y < rows.Length; y++)
+                    {
+                        for (int x = 0; x < rows[y].Length; x++)
+                        {
+                            if (rows[y][x] == '1')
+                            {
+                                spriteBatch.Draw(
+                                    pixel,
+                                    new Rectangle(cursorX + x * scale, position.Y + y * scale, scale, scale),
+                                    color);
+                            }
+                        }
+                    }
+                }
+
+                cursorX += 6 * scale;
+            }
+        }
+    }
+}
