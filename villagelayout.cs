@@ -15,7 +15,7 @@ namespace TileQuest
     //    .   grass            walkable
     //    ,   tall grass       walkable
     //    =   dirt road        walkable
-    //    L   village lantern  walkable (drawn on top of stone paving)
+    //    L   village lantern  blocked (base is solid; drawn on stone paving)
     //    P   stone paving     walkable; beside a road, draws as a thin sidewalk
     //    F   flowers/plant    walkable decoration (place one per tile)
     //    G   garden bed       walkable soil tile with a small plant (join G

@@ -192,8 +192,8 @@ namespace TileQuest
             bool isWalkableGround =
                 tile == TileType.Grass || tile == TileType.TallGrass || tile == TileType.DirtPath ||
                 tile == TileType.ForestExit || tile == TileType.VillageExit ||
-                tile == TileType.VillageLantern || tile == TileType.VillagePaving ||
-                tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
+                tile == TileType.VillagePaving || tile == TileType.VillageFlower ||
+                tile == TileType.VillageGarden ||
                 DrawTree.IsTreeType(tile) || tile == TileType.Rock;
             bool isBuildingSprite = tile == TileType.Church ||
                                     tile == TileType.House1 ||

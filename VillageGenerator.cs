@@ -11,7 +11,7 @@ namespace TileQuest
     // The result is the same data the old procedural generator produced: a
     // Dictionary<Point, TileType> covering every tile, the list of building
     // footprints that Game1 draws sprites for, and the player's spawn tile.
-    // Tile types, walkability, sprites and map size are all unchanged.
+    // Map dimensions and sprites are unchanged.
     public static class VillageGenerator
     {
         private readonly record struct Building(TileType Type, int Width, int Height);
@@ -162,7 +162,7 @@ namespace TileQuest
             ThrowIfAny(errors);
 
             // 4. Walk the map with the same BFS graph TileMap uses. The gate and
-            // every road tile (dirt / lantern) must be reachable from the
+            // every walkable road tile must be reachable from the
             // spawn, otherwise a road is cut in two. Unreachable grass or
             // tall grass is only reported as a warning, like TileMap's check.
             var graph = new TileGraph(tiles);
@@ -181,8 +181,7 @@ namespace TileQuest
                     continue;
                 }
 
-                if (pair.Value == TileType.DirtPath || pair.Value == TileType.VillageLantern ||
-                    pair.Value == TileType.VillagePaving)
+                if (pair.Value == TileType.DirtPath || pair.Value == TileType.VillagePaving)
                 {
                     strandedRoads.Add(pair.Key);
                 }

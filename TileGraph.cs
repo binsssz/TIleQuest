@@ -54,8 +54,7 @@ namespace TileQuest
         public static bool IsWalkableType(TileType tile)
         {
             return tile == TileType.Grass || tile == TileType.TallGrass ||
-                   tile == TileType.DirtPath || tile == TileType.VillageLantern ||
-                   tile == TileType.VillagePaving ||
+                   tile == TileType.DirtPath || tile == TileType.VillagePaving ||
                    tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
                    tile == TileType.ForestExit || tile == TileType.VillageExit;
         }
