@@ -24,6 +24,11 @@ namespace TileQuest
         VillagePaving,
         VillageFlower,
         VillageGarden,
+        ForestFlower,
+        ForestFoxglove,
+        ForestMushroom,
+        ForestHill,
+        ForestCave,
         Prop,      // any PropCatalog prop (boulder, dead tree, bush...): blocked
         Well,      // village well structure: blocked
         Wall       // sentinel only — the default for out-of-bounds coordinates;
@@ -118,6 +123,7 @@ namespace TileQuest
         public bool IsFullyConnected { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
         public IReadOnlyList<VillageProp> VillageProps { get; }
+        public IReadOnlyList<VillageProp> Props => VillageProps;
 
         private readonly Dictionary<Point, TileType> _tiles;
         private readonly Dictionary<Point, MapTravel> _travelPoints = new();
@@ -145,23 +151,17 @@ namespace TileQuest
                     new Point(width / 2, height - 1),
                     TileType.ForestExit,
                     WorldMapType.Forest,
-                    new Point(width / 2, height - 2));
+                    new Point(width / 2, height / 2));
             }
             else
             {
-                _tiles = ForestGenerator.Generate(width, height, new Random(), out _);
-                SpawnPoint = new Point(width / 2, height - 2);
+                _tiles = ForestGenerator.Generate(
+                    width, height, new Random(), out var forestSpawn, out var forestProps);
+                SpawnPoint = forestSpawn;
                 VillageStructures = Array.Empty<VillageStructure>();
-                VillageProps = Array.Empty<VillageProp>();
-                for (int x = width / 2 - 2; x <= width / 2 + 2; x++)
-                {
-                    for (int y = height - 4; y < height; y++)
-                    {
-                        _tiles[new Point(x, y)] = TileType.Grass;
-                    }
-                }
+                VillageProps = forestProps;
                 AddTravelPoint(
-                    new Point(width / 2, height - 1),
+                    new Point(width / 2, height / 2),
                     TileType.VillageExit,
                     WorldMapType.Village,
                     new Point(width / 2, height - 2));
@@ -193,7 +193,8 @@ namespace TileQuest
                 tile == TileType.Grass || tile == TileType.TallGrass || tile == TileType.DirtPath ||
                 tile == TileType.ForestExit || tile == TileType.VillageExit ||
                 tile == TileType.VillagePaving || tile == TileType.VillageFlower ||
-                tile == TileType.VillageGarden ||
+                tile == TileType.VillageGarden || tile == TileType.ForestFlower ||
+                tile == TileType.ForestFoxglove || tile == TileType.ForestMushroom ||
                 DrawTree.IsTreeType(tile) || tile == TileType.Rock;
             bool isBuildingSprite = tile == TileType.Church ||
                                     tile == TileType.House1 ||

@@ -56,6 +56,8 @@ namespace TileQuest
             return tile == TileType.Grass || tile == TileType.TallGrass ||
                    tile == TileType.DirtPath || tile == TileType.VillagePaving ||
                    tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
+                   tile == TileType.ForestFlower || tile == TileType.ForestFoxglove ||
+                   tile == TileType.ForestMushroom ||
                    tile == TileType.ForestExit || tile == TileType.VillageExit;
         }
 

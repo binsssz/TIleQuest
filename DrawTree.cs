@@ -121,7 +121,49 @@ namespace TileQuest
             return trees.ToArray();
         }
 
+        public static void DrawBottomCanopy(
+            SpriteBatch spriteBatch, Texture2D tree1Texture, Texture2D tree2Texture,
+            Texture2D tree3Texture, int mapWidth, int mapHeight, int tileSize)
+        {
+            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, -1, mapHeight, tileSize);
+            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, 1, mapHeight, tileSize);
+            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, mapWidth - 2, mapHeight, tileSize);
+            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, mapWidth, mapHeight, tileSize);
+
+            for (int row = 1; row >= 0; row--)
+            {
+                int anchorY = mapHeight + 1 + row * 2;
+                int firstX = row == 0 ? -1 : 0;
+                for (int x = firstX; x <= mapWidth; x += 3)
+                {
+                    DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, x, anchorY, tileSize);
+                }
+            }
+        }
+
+        private static void DrawCanopyTree(
+            SpriteBatch spriteBatch, Texture2D tree1Texture, Texture2D tree2Texture,
+            Texture2D tree3Texture, int x, int anchorY, int tileSize)
+        {
+            var anchor = new Point(x, anchorY);
+            int typeHash = unchecked(x * 83492791 ^ anchorY * 29765797) & 0x7fffffff;
+            TileType type = (TileType)((int)TileType.Tree + typeHash % 3);
+            Texture2D texture = type switch
+            {
+                TileType.Tree2 => tree2Texture,
+                TileType.Tree3 => tree3Texture,
+                _ => tree1Texture,
+            };
+            new DrawTree(texture, SourceFor(type), type, anchor, tileSize)
+                .Draw(spriteBatch);
+        }
+
         public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
+        {
+            Draw(spriteBatch);
+        }
+
+        private void Draw(SpriteBatch spriteBatch)
         {
             float scale = _tileSize / (float)SourceTileSize * NormalizeScale(_type) * ScaleFor(_anchorTile);
             int width = (int)Math.Round(_source.Width * scale);

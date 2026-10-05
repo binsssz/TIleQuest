@@ -25,6 +25,137 @@ namespace TileQuest
         };
 
         public static Dictionary<Point, TileType> Generate(
+            int width, int height, Random random, out Point spawnPoint)
+        {
+            return Generate(width, height, random, out spawnPoint, out _);
+        }
+
+        public static Dictionary<Point, TileType> Generate(
+            int width, int height, Random random, out Point spawnPoint, out List<VillageProp> props)
+        {
+            string[] rows = ForestLayout.Rows;
+            var errors = new List<string>();
+            props = new List<VillageProp>();
+            spawnPoint = new Point(width / 2, height / 2);
+
+            if (rows.Length != height)
+            {
+                errors.Add($"Forest layout has {rows.Length} rows but the map is {height} tiles tall.");
+            }
+            for (int y = 0; y < rows.Length; y++)
+            {
+                if (rows[y].Length != width)
+                {
+                    errors.Add($"Forest layout row y={y} has {rows[y].Length} characters but the map is {width} tiles wide.");
+                }
+            }
+            if (errors.Count > 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+            }
+
+            var tiles = new Dictionary<Point, TileType>(width * height);
+            var gates = new List<Point>();
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var position = new Point(x, y);
+                    char symbol = rows[y][x];
+                    switch (symbol)
+                    {
+                        case '.':
+                            tiles[position] = TileType.Grass;
+                            break;
+                        case ',':
+                            tiles[position] = TileType.TallGrass;
+                            break;
+                        case '=':
+                            tiles[position] = TileType.DirtPath;
+                            break;
+                        case '#':
+                            tiles[position] = TileType.ForestHill;
+                            break;
+                        case 'V':
+                            tiles[position] = TileType.ForestCave;
+                            break;
+                        case 'F':
+                            tiles[position] = TileType.ForestFlower;
+                            break;
+                        case 'I':
+                            tiles[position] = TileType.ForestFoxglove;
+                            break;
+                        case 'm':
+                            tiles[position] = TileType.ForestMushroom;
+                            break;
+                        case 'X':
+                            tiles[position] = TileType.ForestExit;
+                            gates.Add(position);
+                            break;
+                        case 'T':
+                            tiles[position] = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree3 + 1);
+                            break;
+                        default:
+                            if (PropCatalog.Letters.TryGetValue(symbol, out PropKind kind))
+                            {
+                                tiles[position] = TileType.Prop;
+                                props.Add(new VillageProp(kind, position));
+                            }
+                            else
+                            {
+                                errors.Add($"Unknown forest layout character '{symbol}' at x={x}, y={y}.");
+                                tiles[position] = TileType.Grass;
+                            }
+                            break;
+                    }
+                }
+            }
+
+            var expectedGate = new Point(width / 2, height / 2);
+            if (gates.Count != 1 || gates[0] != expectedGate)
+            {
+                errors.Add($"Forest layout must have exactly one 'X' at x={expectedGate.X}, y={expectedGate.Y}.");
+            }
+            if (!TileGraph.IsWalkableType(tiles[spawnPoint]))
+            {
+                errors.Add($"Forest center arrival tile x={spawnPoint.X}, y={spawnPoint.Y} must be walkable.");
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    if (rows[y][x] != 'V' ||
+                        (x > 0 && rows[y][x - 1] == 'V') ||
+                        (y > 0 && rows[y - 1][x] == 'V'))
+                    {
+                        continue;
+                    }
+
+                    for (int caveY = y; caveY < y + 6; caveY++)
+                    {
+                        for (int caveX = x; caveX < x + 6; caveX++)
+                        {
+                            if (caveY >= height || caveX >= width || rows[caveY][caveX] != 'V')
+                            {
+                                errors.Add($"Cave at x={x}, y={y} must be a solid 6x6 block of 'V'.");
+                                caveY = height;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+            }
+
+            return tiles;
+        }
+
+        public static Dictionary<Point, TileType> GenerateProcedural(
             int width, int height, Random random, out Point spawnPoint,
             int treeClusters = 0, int rockClusters = 0, int tallGrassPatches = 0)
         {

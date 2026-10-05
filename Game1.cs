@@ -34,6 +34,7 @@ namespace TileQuest
         private Texture2D _bonfireTexture = null!;
         private Texture2D _bonfireFlameTexture = null!;
         private Texture2D _lampTexture = null!;
+        private Texture2D _forestTerrainTexture = null!;
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
         private readonly Dictionary<PropSheet, Texture2D> _propSheets = new();
@@ -120,6 +121,7 @@ namespace TileQuest
             _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
+            _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
             _propSheets[PropSheet.Rocks] = _rocksTexture;
             _propSheets[PropSheet.Vegetation] = _vegetationTexture;
             foreach (PropSheet sheet in new[] { PropSheet.Tools, PropSheet.Furniture, PropSheet.Farm })
@@ -154,8 +156,12 @@ namespace TileQuest
                         .Where(entry => entry.Value == TileType.VillageLantern)
                         .Select(entry => new DepthSortedLamp(_lampTexture, entry.Key, TileSize)));
             }
-            // OrderBy is stable, so trees and props keep their established order within a row.
-            _depthSorted = depthSorted.OrderBy(item => item.BaseY).ToArray();
+            // On the same depth row, draw structures first so neighboring props
+            // and trees remain visible over their roof edges.
+            _depthSorted = depthSorted
+                .OrderBy(item => item.BaseY)
+                .ThenBy(item => item is DepthSortedStructure ? 0 : 1)
+                .ToArray();
         }
 
         private bool WasPressed(KeyboardState keyboard, Keys key)
@@ -256,6 +262,7 @@ namespace TileQuest
             DrawTiles();
             DrawVillageGroundDetails();
             DrawVillagePlants();
+            DrawForestBottomCanopy();
             DrawTreeShadows();
             DrawRocks();
             DrawTreesAndPlayer(gameTime);
@@ -290,7 +297,9 @@ namespace TileQuest
 
                 Rectangle source = tile switch
                 {
-                    TileType.DirtPath => TileSprites.BrightCrackedRoad,
+                    TileType.DirtPath => _map.MapType == WorldMapType.Forest
+                        ? TileSprites.DirtPatchFill
+                        : TileSprites.BrightCrackedRoad,
                     TileType.VillageGarden => TileSprites.DirtPatchFill,
                     TileType.VillageLantern => TileSprites.Stone,
                     TileType.VillageHearth => TileSprites.Stone,
@@ -311,6 +320,86 @@ namespace TileQuest
 
             // Rounded road corners go on top of the finished floor.
             _pathCorners.Draw(_spriteBatch, _map, TileSize);
+            DrawForestTerrain();
+        }
+
+        private void DrawForestBottomCanopy()
+        {
+            if (_map.MapType == WorldMapType.Forest)
+            {
+                DrawTree.DrawBottomCanopy(
+                    _spriteBatch, _tree1Texture, _tree2Texture, _tree3Texture,
+                    _map.Width, _map.Height, TileSize);
+            }
+        }
+
+        private void DrawForestTerrain()
+        {
+            if (_map.MapType != WorldMapType.Forest)
+            {
+                return;
+            }
+
+            foreach (var (position, tile) in _map.AllTiles())
+            {
+                if (tile == TileType.ForestHill)
+                {
+                    bool top = _map.GetTile(new Point(position.X, position.Y - 1)) != TileType.ForestHill;
+                    bool bottom = _map.GetTile(new Point(position.X, position.Y + 1)) != TileType.ForestHill;
+                    bool left = _map.GetTile(new Point(position.X - 1, position.Y)) != TileType.ForestHill;
+                    bool right = _map.GetTile(new Point(position.X + 1, position.Y)) != TileType.ForestHill;
+                    int sourceRow = top ? 0 : bottom ? 5 :
+                        _map.GetTile(new Point(position.X, position.Y - 1)) != TileType.ForestHill ? 1 :
+                        2 + Math.Abs(position.X * 31 + position.Y * 17) % 3;
+                    int sourceColumn = left ? 0 : right ? 5 :
+                        1 + Math.Abs(position.X * 13 + position.Y * 7) % 4;
+                    var source = new Rectangle(
+                        sourceColumn * TileSprites.GridSize,
+                        sourceRow * TileSprites.GridSize,
+                        TileSprites.GridSize,
+                        TileSprites.GridSize);
+                    var destination = new Rectangle(
+                        position.X * TileSize, position.Y * TileSize, TileSize, TileSize);
+                    _spriteBatch.Draw(_forestTerrainTexture, destination, source, Color.White);
+                }
+                else if (tile == TileType.ForestCave &&
+                         _map.GetTile(new Point(position.X - 1, position.Y)) != TileType.ForestCave &&
+                         _map.GetTile(new Point(position.X, position.Y - 1)) != TileType.ForestCave)
+                {
+                    var destination = new Rectangle(
+                        position.X * TileSize, position.Y * TileSize, TileSize * 6, TileSize * 6);
+                    _spriteBatch.Draw(
+                        _forestTerrainTexture,
+                        destination,
+                        new Rectangle(0, 304, 96, 96),
+                        Color.White);
+                }
+            }
+
+            foreach (var (position, tile) in _map.AllTiles())
+            {
+                if (tile != TileType.ForestHill ||
+                    _map.GetTile(new Point(position.X, position.Y + 1)) == TileType.ForestHill)
+                {
+                    continue;
+                }
+
+                bool left = _map.GetTile(new Point(position.X - 1, position.Y)) != TileType.ForestHill;
+                bool right = _map.GetTile(new Point(position.X + 1, position.Y)) != TileType.ForestHill;
+                int column = left ? 0 : right ? 5 : 1 + Math.Abs(position.X * 13 + position.Y * 7) % 4;
+                int x = position.X * TileSize;
+                int y = position.Y * TileSize;
+                _spriteBatch.Draw(
+                    _forestTerrainTexture,
+                    new Rectangle(x, y, TileSize, TileSize * 2),
+                    new Rectangle(column * TileSprites.GridSize, 96, TileSprites.GridSize, TileSprites.GridSize * 2),
+                    Color.White);
+                _spriteBatch.Draw(
+                    _forestTerrainTexture,
+                    new Rectangle(x, y + TileSize, TileSize, TileSize * 2),
+                    new Rectangle(column * TileSprites.GridSize, 128, TileSprites.GridSize, TileSprites.GridSize * 2),
+                    Color.White);
+            }
         }
 
         private void DrawPavingBesideRoad(Point position, Rectangle tileBounds)
@@ -384,17 +473,12 @@ namespace TileQuest
         // walkable and never change the map.
         private void DrawVillageGroundDetails()
         {
-            if (_map.MapType != WorldMapType.Village)
-            {
-                return;
-            }
-
             int scale = TileSize / TileSprites.GridSize;
             foreach (var (position, tile) in _map.AllTiles())
             {
                 int hash = unchecked(position.X * 19349663 ^ position.Y * 73856093) & 0x7fffffff;
 
-                if (tile == TileType.Grass)
+                if (_map.MapType == WorldMapType.Village && tile == TileType.Grass)
                 {
                     if (hash % 100 >= PebbleChancePercent)
                     {
@@ -471,20 +555,24 @@ namespace TileQuest
 
         private void DrawVillagePlants()
         {
-            if (_map.MapType != WorldMapType.Village)
-            {
-                return;
-            }
-
             foreach (var (position, tile) in _map.AllTiles())
             {
-                if (tile != TileType.VillageFlower && tile != TileType.VillageGarden)
+                if (tile != TileType.VillageFlower && tile != TileType.VillageGarden &&
+                    tile != TileType.ForestFlower && tile != TileType.ForestFoxglove &&
+                    tile != TileType.ForestMushroom)
                 {
                     continue;
                 }
 
                 int hash = unchecked(position.X * 19349663 ^ position.Y * 73856093);
-                Rectangle source = TileSprites.Vegetation[(hash & 0x7fffffff) % TileSprites.Vegetation.Length];
+                Rectangle source = tile switch
+                {
+                    TileType.ForestFoxglove =>
+                        TileSprites.ForestFoxgloves[(hash & 0x7fffffff) % TileSprites.ForestFoxgloves.Length],
+                    TileType.ForestMushroom =>
+                        TileSprites.ForestMushrooms[(hash & 0x7fffffff) % TileSprites.ForestMushrooms.Length],
+                    _ => TileSprites.Vegetation[(hash & 0x7fffffff) % TileSprites.Vegetation.Length],
+                };
                 int width = (int)Math.Round(source.Width * TileSize / (float)TileSprites.GridSize);
                 int height = (int)Math.Round(source.Height * TileSize / (float)TileSprites.GridSize);
                 int x = position.X * TileSize + (TileSize - width) / 2;
@@ -599,7 +687,12 @@ namespace TileQuest
             {
                 _game = game;
                 _structure = structure;
-                BaseY = (structure.Position.Y + structure.Height) * tileSize;
+                Rectangle[] collisionBounds = structure.GetCollisionBounds(tileSize);
+                BaseY = collisionBounds.Length == 0
+                    ? (structure.Position.Y + structure.Height) * tileSize
+                    : structure.Type == TileType.House2
+                        ? collisionBounds.Min(bounds => bounds.Bottom)
+                        : collisionBounds.Max(bounds => bounds.Bottom);
             }
 
             public int BaseY { get; }

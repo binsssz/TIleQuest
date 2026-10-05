@@ -38,6 +38,11 @@ square a focal point. A broad dirt crossroads links the southern arrival road
 to the church and each home's frontage; small garden beds soften the edges of
 the residential rows. Forest generation is kept separate in `ForestGenerator.cs`.
 
+**Editing the forest:** `ForestLayout.cs` is the hand-editable 36x28 forest
+grid. `ForestGenerator.cs` reads and validates its symbols at startup; hill and
+cave cells are blocked, while the trail and plant decorations remain walkable.
+The forest art is rendered from the wall tileset and vegetation sheet.
+
 **Editing the village:** the village is a hand-editable text grid in `VillageLayout.cs` (one character per tile, 36x28, legend and coordinate ruler included). `VillageGenerator.cs` reads and validates it on every launch: layout mistakes stop the game with a list of problems and coordinates, and a `[VillageLayout] OK` line is printed when it passes.
 
 Village ground defaults to grass. Use `=` for cracked roads and `P` for

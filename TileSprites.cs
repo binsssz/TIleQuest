@@ -48,6 +48,18 @@ namespace TileQuest
             new(97, 177, 14, 15),
             new(229, 176, 8, 16),
         };
+        public static readonly Rectangle[] ForestFoxgloves =
+        {
+            new(194, 160, 13, 33),
+            new(211, 164, 11, 29),
+            new(228, 175, 10, 18),
+        };
+        public static readonly Rectangle[] ForestMushrooms =
+        {
+            new(48, 337, 16, 16),
+            new(35, 339, 10, 11),
+            new(20, 340, 7, 9),
+        };
 
         // Tiny grey pebbles on "Rocks/Rocks.png", sprinkled over the village grass
         // as walkable decoration (Game1.DrawVillageGroundDetails).
