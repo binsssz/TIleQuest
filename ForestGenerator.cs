@@ -95,6 +95,30 @@ namespace TileQuest
                         case 'T':
                             tiles[position] = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree3 + 1);
                             break;
+                        case 'a':
+                            tiles[position] = TileType.Tree;
+                            break;
+                        case 'b':
+                            tiles[position] = TileType.Tree2;
+                            break;
+                        case 'c':
+                            tiles[position] = TileType.Tree3;
+                            break;
+                        case 'd':
+                            tiles[position] = TileType.Tree4;
+                            break;
+                        case 'e':
+                            tiles[position] = TileType.Tree5;
+                            break;
+                        case 'f':
+                            tiles[position] = TileType.Tree6;
+                            break;
+                        case 'g':
+                            tiles[position] = TileType.Tree7;
+                            break;
+                        case 'h':
+                            tiles[position] = TileType.Tree8;
+                            break;
                         default:
                             if (PropCatalog.Letters.TryGetValue(symbol, out PropKind kind))
                             {

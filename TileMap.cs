@@ -12,6 +12,11 @@ namespace TileQuest
         Tree,
         Tree2,
         Tree3,
+        Tree4,
+        Tree5,
+        Tree6,
+        Tree7,
+        Tree8,
         Rock,
         VillageHearth,
         Church,
@@ -121,12 +126,15 @@ namespace TileQuest
         public WorldMapType MapType { get; }
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
+        internal ForestTmxMap? ForestMap { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
         public IReadOnlyList<VillageProp> VillageProps { get; }
         public IReadOnlyList<VillageProp> Props => VillageProps;
 
         private readonly Dictionary<Point, TileType> _tiles;
         private readonly Dictionary<Point, MapTravel> _travelPoints = new();
+        private readonly HashSet<Point> _forestWalkableTiles;
+        private readonly HashSet<Point> _forestTreeAnchorTiles;
 
         public TileMap(int width, int height, int tileSize)
             : this(width, height, tileSize, WorldMapType.Village)
@@ -135,13 +143,15 @@ namespace TileQuest
 
         public TileMap(int width, int height, int tileSize, WorldMapType mapType)
         {
-            Width = width;
-            Height = height;
             TileSize = tileSize;
             MapType = mapType;
 
             if (mapType == WorldMapType.Village)
             {
+                Width = width;
+                Height = height;
+                _forestWalkableTiles = new HashSet<Point>();
+                _forestTreeAnchorTiles = new HashSet<Point>();
                 _tiles = VillageGenerator.Generate(
                     width, height, out var spawnPoint, out var villageStructures, out var villageProps);
                 SpawnPoint = spawnPoint;
@@ -155,19 +165,51 @@ namespace TileQuest
             }
             else
             {
-                _tiles = ForestGenerator.Generate(
-                    width, height, new Random(), out var forestSpawn, out var forestProps);
-                SpawnPoint = forestSpawn;
+                ForestMap = ForestTmxMap.Load();
+                Width = ForestMap.Width;
+                Height = ForestMap.Height;
+                _forestWalkableTiles = ForestMap.WalkableTiles;
+                _forestTreeAnchorTiles = ForestMap.TreeAnchorTiles;
+                SpawnPoint = new Point(Width / 2, Height / 2);
+                if (!_forestWalkableTiles.Contains(SpawnPoint) ||
+                    _forestTreeAnchorTiles.Contains(SpawnPoint))
+                {
+                    throw new InvalidOperationException(
+                        $"The forest spawn point x={SpawnPoint.X}, y={SpawnPoint.Y} is outside the walkable foothill or on a tree base.");
+                }
+                _tiles = new Dictionary<Point, TileType>(Width * Height);
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
+                    {
+                        _tiles[new Point(x, y)] = TileType.Grass;
+                    }
+                }
                 VillageStructures = Array.Empty<VillageStructure>();
-                VillageProps = forestProps;
+                VillageProps = Array.Empty<VillageProp>();
                 AddTravelPoint(
-                    new Point(width / 2, height / 2),
+                    SpawnPoint,
                     TileType.VillageExit,
                     WorldMapType.Village,
                     new Point(width / 2, height - 2));
             }
 
-            var graph = new TileGraph(_tiles);
+            Dictionary<Point, TileType> graphTiles = _tiles;
+            if (MapType == WorldMapType.Forest)
+            {
+                graphTiles = new Dictionary<Point, TileType>();
+                foreach (Point position in _forestWalkableTiles)
+                {
+                    if (position.X >= 0 && position.X < Width &&
+                        position.Y >= 0 && position.Y < Height &&
+                        !_forestTreeAnchorTiles.Contains(position))
+                    {
+                        graphTiles[position] = TileType.Grass;
+                    }
+                }
+            }
+
+            var graph = new TileGraph(graphTiles);
             IsFullyConnected = graph.IsFullyConnected(SpawnPoint, out var unreachableCount);
             Console.WriteLine(IsFullyConnected
                 ? "[TileGraph] BFS connectivity check: OK, all ground reachable from spawn."
@@ -184,10 +226,18 @@ namespace TileQuest
             return _tiles.TryGetValue(gridPos, out var tile) ? tile : TileType.Wall;
         }
 
-        // Building, tree and rock anchors are checked against their sprite
-        // collision bounds below, so their visible size controls occupied space.
+        // Village buildings, trees and rocks use sprite bounds so their visible
+        // size controls occupied space.
         public bool IsWalkable(Point gridPos)
         {
+            if (MapType == WorldMapType.Forest)
+            {
+                return gridPos.X >= 0 && gridPos.X < Width &&
+                       gridPos.Y >= 0 && gridPos.Y < Height &&
+                       _forestWalkableTiles.Contains(gridPos) &&
+                       !_forestTreeAnchorTiles.Contains(gridPos);
+            }
+
             var tile = GetTile(gridPos);
             bool isWalkableGround =
                 tile == TileType.Grass || tile == TileType.TallGrass || tile == TileType.DirtPath ||

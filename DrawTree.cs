@@ -23,6 +23,17 @@ namespace TileQuest
 
         private static readonly float[] SizeVariants = { 0.8f, 1.2f, 1.6f };
         private const float TreeSizeScale = 1.35f;
+        private static readonly Rectangle[] TreeSources =
+        {
+            Tree1Source,
+            Tree2Source,
+            Tree3Source,
+            new(0, 80, 48, 80),
+            new(0, 112, 64, 112),
+            new(0, 160, 96, 160),
+            new(0, 0, 64, 144),
+            new(0, 0, 128, 256),
+        };
 
         private readonly Texture2D _texture;
         private readonly Rectangle _source;
@@ -48,17 +59,17 @@ namespace TileQuest
         // will be before placing it.
         public static bool IsTreeType(TileType type)
         {
-            return type == TileType.Tree || type == TileType.Tree2 || type == TileType.Tree3;
+            return type >= TileType.Tree && type <= TileType.Tree8;
         }
 
         private static Rectangle SourceFor(TileType type)
         {
-            return type switch
-            {
-                TileType.Tree2 => Tree2Source,
-                TileType.Tree3 => Tree3Source,
-                _ => Tree1Source,
-            };
+            return TreeSources[(int)type - (int)TileType.Tree];
+        }
+
+        private static Texture2D TextureFor(TileType type, Texture2D[] textures)
+        {
+            return textures[(int)type - (int)TileType.Tree];
         }
 
         private static float ScaleFor(Point tile)
@@ -92,21 +103,14 @@ namespace TileQuest
             return new Rectangle(left, bottom - height, width, height);
         }
 
-        public static DrawTree[] CreateForest(
-            TileMap map, Texture2D tree1Texture, Texture2D tree2Texture, Texture2D tree3Texture, int tileSize)
+        public static DrawTree[] CreateForest(TileMap map, Texture2D[] treeTextures, int tileSize)
         {
             var trees = new List<DrawTree>();
             foreach (var (position, tile) in map.AllTiles())
             {
                 if (IsTreeType(tile))
                 {
-                    Texture2D texture = tile switch
-                    {
-                        TileType.Tree2 => tree2Texture,
-                        TileType.Tree3 => tree3Texture,
-                        _ => tree1Texture,
-                    };
-                    trees.Add(new DrawTree(texture, SourceFor(tile), tile, position, tileSize));
+                    trees.Add(new DrawTree(TextureFor(tile, treeTextures), SourceFor(tile), tile, position, tileSize));
                 }
             }
 
@@ -122,40 +126,65 @@ namespace TileQuest
         }
 
         public static void DrawBottomCanopy(
-            SpriteBatch spriteBatch, Texture2D tree1Texture, Texture2D tree2Texture,
-            Texture2D tree3Texture, int mapWidth, int mapHeight, int tileSize)
+            SpriteBatch spriteBatch, Texture2D[] treeTextures, int mapWidth, int mapHeight, int tileSize)
         {
-            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, -1, mapHeight, tileSize);
-            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, 1, mapHeight, tileSize);
-            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, mapWidth - 2, mapHeight, tileSize);
-            DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, mapWidth, mapHeight, tileSize);
-
-            for (int row = 1; row >= 0; row--)
+            for (int row = 0; row < 2; row++)
             {
                 int anchorY = mapHeight + 1 + row * 2;
-                int firstX = row == 0 ? -1 : 0;
-                for (int x = firstX; x <= mapWidth; x += 3)
+                int x = row == 0 ? -1 : 1;
+                int lastX = int.MinValue;
+                while (x <= mapWidth)
                 {
-                    DrawCanopyTree(spriteBatch, tree1Texture, tree2Texture, tree3Texture, x, anchorY, tileSize);
+                    DrawCanopyTree(spriteBatch, treeTextures, x, anchorY, mapWidth, tileSize);
+                    lastX = x;
+                    int spacingHash = unchecked(x * 19349663 ^ anchorY * 73856093) & 0x7fffffff;
+                    x += 3 + spacingHash % 3;
+                }
+
+                if (lastX < mapWidth - 2)
+                {
+                    DrawCanopyTree(spriteBatch, treeTextures, mapWidth, anchorY, mapWidth, tileSize);
                 }
             }
         }
 
+        public static void DrawLeftCornerCanopyOverlay(
+            SpriteBatch spriteBatch, Texture2D[] treeTextures, int mapWidth, int mapHeight, int tileSize)
+        {
+            DrawCanopyFoliage(spriteBatch, treeTextures[3], new Rectangle(0, 80, 48, 48),
+                -tileSize, mapHeight * tileSize - tileSize * 2, tileSize * 3, tileSize * 2);
+            DrawCanopyFoliage(spriteBatch, treeTextures[4], new Rectangle(0, 112, 64, 64),
+                tileSize, mapHeight * tileSize - tileSize * 2, tileSize * 3, tileSize * 2);
+            DrawCanopyFoliage(spriteBatch, treeTextures[5], new Rectangle(0, 160, 96, 80),
+                tileSize * 4, mapHeight * tileSize - tileSize * 2, tileSize * 4, tileSize * 2);
+        }
+
+        private static void DrawCanopyFoliage(
+            SpriteBatch spriteBatch, Texture2D texture, Rectangle source, int x, int y, int width, int height)
+        {
+            spriteBatch.Draw(texture, new Rectangle(x, y, width, height), source, Color.White);
+        }
+
         private static void DrawCanopyTree(
-            SpriteBatch spriteBatch, Texture2D tree1Texture, Texture2D tree2Texture,
-            Texture2D tree3Texture, int x, int anchorY, int tileSize)
+            SpriteBatch spriteBatch, Texture2D[] treeTextures, int x, int anchorY, int mapWidth, int tileSize)
         {
             var anchor = new Point(x, anchorY);
-            int typeHash = unchecked(x * 83492791 ^ anchorY * 29765797) & 0x7fffffff;
-            TileType type = (TileType)((int)TileType.Tree + typeHash % 3);
-            Texture2D texture = type switch
+            int hash = unchecked(x * 83492791 ^ anchorY * 29765797) & 0x7fffffff;
+            int treeIndex = hash % treeTextures.Length;
+            Rectangle source = TreeSources[treeIndex];
+            float sizeScale = ScaleFor(anchor);
+            if (x < mapWidth / 3)
             {
-                TileType.Tree2 => tree2Texture,
-                TileType.Tree3 => tree3Texture,
-                _ => tree1Texture,
-            };
-            new DrawTree(texture, SourceFor(type), type, anchor, tileSize)
-                .Draw(spriteBatch);
+                sizeScale = Math.Max(sizeScale, 1.2f);
+            }
+            float scale = tileSize / (float)SourceTileSize *
+                          (54f * TreeSizeScale / source.Height) * sizeScale;
+            int width = (int)Math.Round(source.Width * scale);
+            int height = (int)Math.Round(source.Height * scale);
+            int anchorX = x * tileSize + tileSize / 2;
+            int anchorYInPixels = (anchorY + 1) * tileSize;
+            var destination = new Rectangle(anchorX - width / 2, anchorYInPixels - height, width, height);
+            spriteBatch.Draw(treeTextures[treeIndex], destination, source, Color.White);
         }
 
         public void Draw(SpriteBatch spriteBatch, GameTime gameTime)

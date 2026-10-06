@@ -36,12 +36,14 @@ inside the forest. Its north side is anchored by the church, four homes sit in
 two rows to the east and west, and a central Village Hearth gives the village
 square a focal point. A broad dirt crossroads links the southern arrival road
 to the church and each home's frontage; small garden beds soften the edges of
-the residential rows. Forest generation is kept separate in `ForestGenerator.cs`.
+the residential rows. The forest map is loaded from `Content/forestmap.tmx`.
 
-**Editing the forest:** `ForestLayout.cs` is the hand-editable 36x28 forest
-grid. `ForestGenerator.cs` reads and validates its symbols at startup; hill and
-cave cells are blocked, while the trail and plant decorations remain walkable.
-The forest art is rendered from the wall tileset and vegetation sheet.
+**Forest collisions:** `Content/forestmap.tmx` supplies the forest walkable
+area. Tiles present on its `foothill` or `foothill grass` layers are walkable,
+except for tree-base anchors from `foothill trees`. The tree art is depth-sorted
+around the player like village trees. Keep the player's forest arrival point
+inside the walkable area. The TMX layers and their tileset images also supply
+the forest visuals.
 
 **Editing the village:** the village is a hand-editable text grid in `VillageLayout.cs` (one character per tile, 36x28, legend and coordinate ruler included). `VillageGenerator.cs` reads and validates it on every launch: layout mistakes stop the game with a list of problems and coordinates, and a `[VillageLayout] OK` line is printed when it passes.
 

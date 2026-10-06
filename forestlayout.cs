@@ -8,12 +8,45 @@ namespace TileQuest
     //  character is ONE TILE. The map is 36 wide (x = 0..35) and 28 tall
     //  (y = 0..27); (0, 0) is the top-left tile.
     //
-    //  The layout is intentionally plain while the forest is rebuilt from the
-    //  reference. The bottom canopy and foothill are drawn separately by
-    //  Game1; this grid supplies open grass and the travel gate.
+    //  LEGEND
+    //    .   grass            walkable
+    //    ,   tall grass       walkable; fern/reed clumps are drawn on it
+    //    =   dirt path        walkable
+    //    F   flowers/plant    walkable decoration (one plant per tile)
+    //    I   foxglove         walkable decoration (tall purple flower)
+    //    m   mushrooms        walkable decoration
+    //    X   village gate     walkable travel tile; exactly one at x=18, y=14.
+    //                         This is also the forest arrival tile.
     //
-    //  .   grass
-    //  X   village gate - exactly one at x=18, y=14; this is also the arrival.
+    //  TREE MODELS - each letter places that exact model on one blocked tile.
+    //  The image is chosen from its green variant row:
+    //    a   tree model 1, top row
+    //    b   tree model 2, top row
+    //    c   tree model 3, top row
+    //    d   tree model 4, bottom row
+    //    e   tree model 5, bottom row
+    //    f   tree model 6, bottom row
+    //    g   tree model 7, top row
+    //    h   tree model 8, top row
+    //
+    //  PROPS - each is one letter on one blocked tile; sprites can extend up
+    //  and sideways beyond their tile, so leave space around them.
+    //    B   tall boulder (grey)             O   round boulder (grey)
+    //    M   brown boulder                   K   blue crystal
+    //    D   dead tree                       U   bush (green or autumn)
+    //    N   big bush (green or autumn)      J   tree stump
+    //    A   anvil                           Q   barrel
+    //    E   scarecrow
+    //
+    //  TERRAIN
+    //    #   hill rock        blocked cliff/foothill tile
+    //    V   cave pit         blocked, solid 6x6 block inside hill rock
+    //
+    //  Village-only symbols from VillageLayout.cs (L, P, G, R, S, C, 1, 2,
+    //  H and W) are not used in this forest layout.
+    //
+    //  EDITING RULES: keep all 28 rows exactly 36 characters wide, keep the
+    //  quotes and trailing comma, and use no spaces. Leave x=18, y=14 as X.
     //
     //  Keep all 28 rows exactly 36 characters wide.
     public static class ForestLayout
@@ -45,11 +78,11 @@ namespace TileQuest
         /* y=20 */ "....................................",
         /* y=21 */ "....................................",
         /* y=22 */ "....................................",
-        /* y=23 */ "....................................",
-        /* y=24 */ "....................................",
-        /* y=25 */ "....................................",
-        /* y=26 */ "....................................",
-        /* y=27 */ "....................................",
+        /* y=23 */ "##########..........................",
+        /* y=24 */ "############........................",
+        /* y=25 */ "############........................",
+        /* y=26 */ "f..e................................",
+        /* y=27 */ "..c.h...............................",
         //          012345678901234567890123456789012345
         //          0         1         2         3
         };

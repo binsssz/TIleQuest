@@ -25,6 +25,7 @@ namespace TileQuest
         private Texture2D _tree1Texture = null!;
         private Texture2D _tree2Texture = null!;
         private Texture2D _tree3Texture = null!;
+        private Texture2D[] _treeTextures = Array.Empty<Texture2D>();
         private Texture2D _rocksTexture = null!;
         private Texture2D _churchTexture = null!;
         private Texture2D _house1Texture = null!;
@@ -38,6 +39,8 @@ namespace TileQuest
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
         private readonly Dictionary<PropSheet, Texture2D> _propSheets = new();
+        private readonly Dictionary<string, Texture2D> _forestTmxTextures =
+            new(StringComparer.OrdinalIgnoreCase);
         private Texture2D _wellTexture = null!;
         private DrawProp[] _props = Array.Empty<DrawProp>();
         // Trees, props, and structures together, back-to-front, so the player can walk
@@ -108,6 +111,17 @@ namespace TileQuest
             _tree1Texture = LoadTexture("Trees/Tree1.png");
             _tree2Texture = LoadTexture("Trees/Tree 2.png");
             _tree3Texture = LoadTexture("Trees/Tree 3.png");
+            _treeTextures = new[]
+            {
+                _tree1Texture,
+                _tree2Texture,
+                _tree3Texture,
+                LoadTexture("Trees/Tree 4.png"),
+                LoadTexture("Trees/Tree 5.png"),
+                LoadTexture("Trees/Tree 6.png"),
+                LoadTexture("Trees/Tree 7.png"),
+                LoadTexture("Trees/Tree 8.png"),
+            };
             _floorTilesTexture = LoadTexture("Ground/Tiles/Floors_Tiles.png");
             _pathCorners = new PathCorners(GraphicsDevice, _floorTilesTexture);
             _vegetationTexture = LoadTexture("Vegetation/Vegetation.png");
@@ -122,6 +136,24 @@ namespace TileQuest
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
             _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
+            ForestTmxMap forestMap = _maps[WorldMapType.Forest].ForestMap
+                ?? throw new InvalidOperationException("The forest TMX map was not loaded.");
+            foreach (ForestTmxTileset tileset in forestMap.Tilesets)
+            {
+                IEnumerable<string> imageNames = tileset.ImageName is not null
+                    ? new[] { tileset.ImageName }
+                    : tileset.TileImages.Values.Select(image => image.ImageName).Distinct(StringComparer.OrdinalIgnoreCase);
+                foreach (string imageName in imageNames)
+                {
+                    if (!_forestTmxTextures.ContainsKey(imageName))
+                    {
+                        _forestTmxTextures.Add(
+                            imageName,
+                            LoadTexture(GetForestTilesetPath(imageName)));
+                    }
+                }
+            }
+
             _propSheets[PropSheet.Rocks] = _rocksTexture;
             _propSheets[PropSheet.Vegetation] = _vegetationTexture;
             foreach (PropSheet sheet in new[] { PropSheet.Tools, PropSheet.Furniture, PropSheet.Farm })
@@ -144,7 +176,7 @@ namespace TileQuest
 
         private void PrepareMapVisuals()
         {
-            _trees = DrawTree.CreateForest(_map, _tree1Texture, _tree2Texture, _tree3Texture, TileSize);
+            _trees = DrawTree.CreateForest(_map, _treeTextures, TileSize);
             _rocks = DrawRock.CreateFor(_map, _rocksTexture, TileSize);
             _props = DrawProp.CreateFor(_map, _propSheets, TileSize);
             IEnumerable<IDepthSorted> depthSorted = _trees.Cast<IDepthSorted>().Concat(_props);
@@ -260,12 +292,18 @@ namespace TileQuest
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
 
             DrawTiles();
-            DrawVillageGroundDetails();
-            DrawVillagePlants();
-            DrawForestBottomCanopy();
-            DrawTreeShadows();
-            DrawRocks();
-            DrawTreesAndPlayer(gameTime);
+            if (_map.MapType == WorldMapType.Village)
+            {
+                DrawVillageGroundDetails();
+                DrawVillagePlants();
+                DrawTreeShadows();
+                DrawRocks();
+                DrawTreesAndPlayer(gameTime);
+            }
+            else
+            {
+                DrawForestTmxMap(gameTime);
+            }
 
             if (_showHitboxes)
             {
@@ -284,6 +322,11 @@ namespace TileQuest
 
         private void DrawTiles()
         {
+            if (_map.MapType == WorldMapType.Forest)
+            {
+                return;
+            }
+
             foreach (var (gridPos, tile) in _map.AllTiles())
             {
                 var rect = new Rectangle(gridPos.X * TileSize, gridPos.Y * TileSize, TileSize, TileSize);
@@ -313,8 +356,7 @@ namespace TileQuest
                 if (tile == TileType.ForestExit || tile == TileType.VillageExit)
                 {
                     Color markerColor = tile == TileType.ForestExit ? Color.LimeGreen : Color.Goldenrod;
-                    _spriteBatch.Draw(_pixelTexture, new Rectangle(rect.X + 5, rect.Y + 5, TileSize - 10, TileSize - 10), markerColor);
-                    _spriteBatch.Draw(_pixelTexture, new Rectangle(rect.X + 10, rect.Y + 10, TileSize - 20, TileSize - 20), Color.Black);
+                    DrawTravelMarker(gridPos, markerColor);
                 }
             }
 
@@ -323,12 +365,193 @@ namespace TileQuest
             DrawForestTerrain();
         }
 
+        private void DrawTravelMarker(Point position, Color color)
+        {
+            int x = position.X * TileSize;
+            int y = position.Y * TileSize;
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(x + 5, y + 5, TileSize - 10, TileSize - 10),
+                color);
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(x + 10, y + 10, TileSize - 20, TileSize - 20),
+                Color.Black);
+        }
+
+        private string GetForestTilesetPath(string imageName)
+        {
+            return imageName switch
+            {
+                "Wall_Tiles.png" => "Environment/Tilesets/Wall_Tiles.png",
+                "Floors_Tiles.png" => "Ground/Tiles/Floors_Tiles.png",
+                "Wall_Variations.png" => "Environment/Tilesets/Wall_Variations.png",
+                "Vegetation.png" => "Vegetation/Vegetation.png",
+                "Rocks.png" => "Rocks/Rocks.png",
+                "Props.png" => "Environment/Structures/Buildings/Props.png",
+                "Size_04 (1).png" => "Environment/Props/Static/Trees/Model_03/Size_04.png",
+                "Size_04.png" => "Trees/Tree 5.png",
+                "Size_05 (1).png" => "Trees/Tree 8.png",
+                "Size_05.png" => "Trees/Tree 6.png",
+                "Tree 2.png" => "Trees/Tree 2.png",
+                "Tree 3.png" => "Trees/Tree 3.png",
+                _ => throw new InvalidDataException(
+                    $"No forest texture is configured for TMX tileset image '{imageName}'."),
+            };
+        }
+
+        private void DrawForestTmxMap(GameTime gameTime)
+        {
+            ForestTmxMap forestMap = _map.ForestMap
+                ?? throw new InvalidOperationException("The active forest map has no TMX data.");
+            float playerFootY = _player.PixelPosition.Y + TileSize;
+
+            foreach (ForestTmxLayer layer in forestMap.Layers)
+            {
+                if (!layer.Visible)
+                {
+                    continue;
+                }
+
+                if (layer.Name == ForestTmxMap.TreesLayerName)
+                {
+                    bool playerDrawn = false;
+                    for (int tileIndex = 0; tileIndex < layer.GlobalTileIds.Length; tileIndex++)
+                    {
+                        int tileY = tileIndex / forestMap.Width;
+                        if (!playerDrawn && (tileY + 1) * TileSize > playerFootY)
+                        {
+                            DrawPlayer();
+                            playerDrawn = true;
+                        }
+
+                        DrawForestTmxTile(forestMap, layer.GlobalTileIds[tileIndex], tileIndex);
+                    }
+
+                    if (!playerDrawn)
+                    {
+                        DrawPlayer();
+                    }
+                    continue;
+                }
+
+                for (int tileIndex = 0; tileIndex < layer.GlobalTileIds.Length; tileIndex++)
+                {
+                    DrawForestTmxTile(forestMap, layer.GlobalTileIds[tileIndex], tileIndex);
+                }
+            }
+
+            foreach (var (position, tile) in _map.AllTiles())
+            {
+                if (tile == TileType.VillageExit)
+                {
+                    DrawTravelMarker(position, Color.Goldenrod);
+                }
+            }
+        }
+
+        private void DrawForestTmxTile(ForestTmxMap forestMap, uint globalTileId, int tileIndex)
+        {
+            uint tileId = ForestTmxMap.GetTileId(globalTileId);
+            if (tileId == 0)
+            {
+                return;
+            }
+
+            ForestTmxTileset tileset = forestMap.Tilesets.Last(candidate =>
+                tileId >= candidate.FirstGlobalId &&
+                tileId - candidate.FirstGlobalId < candidate.TileCount);
+            int localTileId = (int)(tileId - tileset.FirstGlobalId);
+            ForestTmxTileImage tileImage = tileset.GetTileImage(localTileId);
+            var source = new Rectangle(
+                tileImage.X,
+                tileImage.Y,
+                tileImage.Width,
+                tileImage.Height);
+            int tileX = tileIndex % forestMap.Width;
+            int tileY = tileIndex / forestMap.Width;
+            float scale = TileSize / (float)forestMap.TileWidth;
+            Vector2 center = new(
+                (tileX * forestMap.TileWidth + tileImage.Width / 2f) * scale,
+                (tileY * forestMap.TileHeight + forestMap.TileHeight -
+                 tileImage.Height / 2f) * scale);
+            GetTileTransform(globalTileId, out float rotation, out SpriteEffects effects);
+            _spriteBatch.Draw(
+                _forestTmxTextures[tileImage.ImageName],
+                center,
+                source,
+                Color.White,
+                rotation,
+                new Vector2(tileImage.Width / 2f, tileImage.Height / 2f),
+                scale,
+                effects,
+                0f);
+        }
+
+        private static void GetTileTransform(uint globalTileId, out float rotation, out SpriteEffects effects)
+        {
+            const uint horizontalFlag = 0x80000000;
+            const uint verticalFlag = 0x40000000;
+            const uint diagonalFlag = 0x20000000;
+            bool horizontal = (globalTileId & horizontalFlag) != 0;
+            bool vertical = (globalTileId & verticalFlag) != 0;
+            bool diagonal = (globalTileId & diagonalFlag) != 0;
+
+            int a = 1, b = 0, c = 0, d = 1;
+            if (diagonal)
+            {
+                (a, b, c, d) = (c, d, a, b);
+            }
+            if (horizontal)
+            {
+                (a, b) = (-a, -b);
+            }
+            if (vertical)
+            {
+                (c, d) = (-c, -d);
+            }
+
+            for (int quarterTurns = 0; quarterTurns < 4; quarterTurns++)
+            {
+                int cos = quarterTurns switch { 0 => 1, 2 => -1, _ => 0 };
+                int sin = quarterTurns switch { 1 => 1, 3 => -1, _ => 0 };
+                for (int flipX = 0; flipX < 2; flipX++)
+                {
+                    for (int flipY = 0; flipY < 2; flipY++)
+                    {
+                        int scaleX = flipX == 0 ? 1 : -1;
+                        int scaleY = flipY == 0 ? 1 : -1;
+                        if (cos * scaleX == a && -sin * scaleY == b &&
+                            sin * scaleX == c && cos * scaleY == d)
+                        {
+                            rotation = quarterTurns * MathHelper.PiOver2;
+                            effects = (flipX == 0 ? SpriteEffects.None : SpriteEffects.FlipHorizontally) |
+                                      (flipY == 0 ? SpriteEffects.None : SpriteEffects.FlipVertically);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("The forest TMX tile has an unsupported flip transform.");
+        }
+
         private void DrawForestBottomCanopy()
         {
             if (_map.MapType == WorldMapType.Forest)
             {
                 DrawTree.DrawBottomCanopy(
-                    _spriteBatch, _tree1Texture, _tree2Texture, _tree3Texture,
+                    _spriteBatch, _treeTextures,
+                    _map.Width, _map.Height, TileSize);
+            }
+        }
+
+        private void DrawForestLeftCornerCanopyOverlay()
+        {
+            if (_map.MapType == WorldMapType.Forest)
+            {
+                DrawTree.DrawLeftCornerCanopyOverlay(
+                    _spriteBatch, _treeTextures,
                     _map.Width, _map.Height, TileSize);
             }
         }
