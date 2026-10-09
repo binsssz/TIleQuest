@@ -2525,3 +2525,10 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Co
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\Trees\Tree 7.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\Trees\Tree 8.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\forestmap.tmx
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\dungeon.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\villagefinal2.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\forest_canopy.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\forest_ground.png
+c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\npc_sprite.png
+c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\village_ground.png
+c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\village_objects.png

@@ -8,13 +8,13 @@
     ".NETCoreApp,Version=v8.0": {
       "TileQuest/1.0.0": {
         "dependencies": {
-          "MonoGame.Framework.DesktopGL": "3.8.5.1"
+          "MonoGame.Framework.DesktopGL": "3.8.6"
         },
         "runtime": {
           "TileQuest.dll": {}
         }
       },
-      "MonoGame.Framework.DesktopGL/3.8.5.1": {
+      "MonoGame.Framework.DesktopGL/3.8.6": {
         "dependencies": {
           "MonoGame.Library.OpenAL": "1.24.3.4",
           "MonoGame.Library.SDL": "2.32.10.2",
@@ -22,8 +22,8 @@
         },
         "runtime": {
           "lib/net8.0/MonoGame.Framework.dll": {
-            "assemblyVersion": "3.8.5.1",
-            "fileVersion": "3.8.5.1"
+            "assemblyVersion": "3.8.6.0",
+            "fileVersion": "3.8.6.0"
           }
         }
       },
@@ -136,12 +136,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "MonoGame.Framework.DesktopGL/3.8.5.1": {
+    "MonoGame.Framework.DesktopGL/3.8.6": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
-      "path": "monogame.framework.desktopgl/3.8.5.1",
-      "hashPath": "monogame.framework.desktopgl.3.8.5.1.nupkg.sha512"
+      "sha512": "sha512-pVAwFo+wNCco7881v8VAkPcls/jYVyfzxx/eSBMuT45ZqZcTFqptsZxd8KwBEE5PQc5UxbX5erGh0rwtFGsKVg==",
+      "path": "monogame.framework.desktopgl/3.8.6",
+      "hashPath": "monogame.framework.desktopgl.3.8.6.nupkg.sha512"
     },
     "MonoGame.Library.OpenAL/1.24.3.4": {
       "type": "package",

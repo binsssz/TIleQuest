@@ -36,7 +36,7 @@ namespace TileQuest
             string[] rows = ForestLayout.Rows;
             var errors = new List<string>();
             props = new List<VillageProp>();
-            spawnPoint = new Point(width / 2, height / 2);
+            spawnPoint = ForestLayout.Gate;
 
             if (rows.Length != height)
             {
@@ -93,31 +93,7 @@ namespace TileQuest
                             gates.Add(position);
                             break;
                         case 'T':
-                            tiles[position] = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree3 + 1);
-                            break;
-                        case 'a':
-                            tiles[position] = TileType.Tree;
-                            break;
-                        case 'b':
-                            tiles[position] = TileType.Tree2;
-                            break;
-                        case 'c':
-                            tiles[position] = TileType.Tree3;
-                            break;
-                        case 'd':
-                            tiles[position] = TileType.Tree4;
-                            break;
-                        case 'e':
-                            tiles[position] = TileType.Tree5;
-                            break;
-                        case 'f':
-                            tiles[position] = TileType.Tree6;
-                            break;
-                        case 'g':
-                            tiles[position] = TileType.Tree7;
-                            break;
-                        case 'h':
-                            tiles[position] = TileType.Tree8;
+                            tiles[position] = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree8 + 1);
                             break;
                         default:
                             if (PropCatalog.Letters.TryGetValue(symbol, out PropKind kind))
@@ -135,10 +111,10 @@ namespace TileQuest
                 }
             }
 
-            var expectedGate = new Point(width / 2, height / 2);
+            Point expectedGate = ForestLayout.Gate;
             if (gates.Count != 1 || gates[0] != expectedGate)
             {
-                errors.Add($"Forest layout must have exactly one 'X' at x={expectedGate.X}, y={expectedGate.Y}.");
+                errors.Add($"Forest layout must have exactly one 'X' at x={expectedGate.X}, y={expectedGate.Y} (ForestLayout.Gate).");
             }
             if (!TileGraph.IsWalkableType(tiles[spawnPoint]))
             {
@@ -278,7 +254,7 @@ namespace TileQuest
             }
             // base case: the sprite would overlap another tree, or hang off
             // the edge of the map.
-            var treeType = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree3 + 1);
+            var treeType = (TileType)random.Next((int)TileType.Tree, (int)TileType.Tree8 + 1);
             var bounds = DrawTree.GetBounds(origin, treeType);
             var spacedBounds = bounds;
             spacedBounds.Inflate(3, 3);

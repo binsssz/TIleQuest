@@ -1,4 +1,4 @@
- using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,28 +19,29 @@ namespace TileQuest
         // needed — see LoadTexture below and the .csproj's
         // CopyToOutputDirectory entry for Content/**/*.png).
         private Texture2D _floorTilesTexture = null!;
+        private Texture2D _villageGroundTexture = null!;
+        private Texture2D _villageObjectsTexture = null!;
         private PathCorners _pathCorners = null!;
         private Texture2D _vegetationTexture = null!;
         private Texture2D _shadowsTexture = null!;
-        private Texture2D _tree1Texture = null!;
-        private Texture2D _tree2Texture = null!;
-        private Texture2D _tree3Texture = null!;
         private Texture2D[] _treeTextures = Array.Empty<Texture2D>();
         private Texture2D _rocksTexture = null!;
         private Texture2D _churchTexture = null!;
         private Texture2D _house1Texture = null!;
         private Texture2D _house2Texture = null!;
         private Texture2D _playerTexture = null!;
+        private Texture2D _wizardTexture = null!;
         private Texture2D _pixelTexture = null!;
         private Texture2D _bonfireTexture = null!;
         private Texture2D _bonfireFlameTexture = null!;
         private Texture2D _lampTexture = null!;
         private Texture2D _forestTerrainTexture = null!;
+        private Texture2D _dungeonTexture = null!;
+        private Texture2D _dungeonVignetteTexture = null!;
+        private readonly Dictionary<string, Texture2D> _forestSprites = new(StringComparer.Ordinal);
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
         private readonly Dictionary<PropSheet, Texture2D> _propSheets = new();
-        private readonly Dictionary<string, Texture2D> _forestTmxTextures =
-            new(StringComparer.OrdinalIgnoreCase);
         private Texture2D _wellTexture = null!;
         private DrawProp[] _props = Array.Empty<DrawProp>();
         // Trees, props, and structures together, back-to-front, so the player can walk
@@ -55,11 +56,28 @@ namespace TileQuest
         private MapTravel? _pendingTravel;
         private KeyboardState _previousKeyboard;
 
-        // player.png is a grid of 48x48 cells, 6 frames per row:
-        //   rows 0-2 = standing (down, side, up), rows 3-5 = walking (down, side, up).
-        // The side row faces right; facing left is that row flipped.
+        // Combat. Enemies are kept per map so each map's mobs stay where the
+        // player left them. Attack with Space or J.
+        private readonly Dictionary<WorldMapType, List<Enemy>> _enemies = new();
+        private Texture2D _enemyTexture = null!;
+        private const int SwingDamage = 5;
+        private const int EnemyMaxHealth = 20;
+        private const int EnemyCellSize = 32;       // Idle-Sheet.png: 4 frames of 32x32 in one row
+        private const int EnemyFrameCount = 4;
+        private const float EnemyFramesPerSecond = 6f;
+        private const int EnemySpriteHeight = 28;   // head-to-feet in source pixels, scaled to one tile
+        private const int MaxTrainingEnemiesPerMap = 4;
+        private static readonly Point[] TrainingEnemyOffsets =
+        {
+            new(3, 0), new(4, 2), new(5, -2), new(-4, 1), new(-3, -3), new(6, 1), new(2, 4), new(-5, -1),
+        };
+
+        // player.png is a grid of 48x48 cells, 6 frames per row. Rows 0-5 are
+        // standing and walking; rows 6-8 contain the four-frame swing for
+        // down, side, and up. The side row faces right and is flipped for left.
         private const int PlayerCellSize = 48;
         private const int PlayerFrameCount = 6;
+        private const int PlayerSwingFrameCount = 4;
         private const float WalkFramesPerSecond = 12f;
         private const int PlayerSpriteHeight = 21; // head-to-feet in source pixels, scaled to one tile
         private const int BonfireFrameSize = 32;
@@ -87,11 +105,16 @@ namespace TileQuest
 
         protected override void Initialize()
         {
-            _maps.Add(WorldMapType.Village, new TileMap(width: 36, height: 28, tileSize: TileSize, WorldMapType.Village));
-            _maps.Add(WorldMapType.Forest, new TileMap(width: 36, height: 28, tileSize: TileSize, WorldMapType.Forest));
+            _maps.Add(WorldMapType.Village, new TileMap(width: 48, height: 36, tileSize: TileSize, WorldMapType.Village));
+            _maps.Add(WorldMapType.Forest, new TileMap(width: 36, height: 29, tileSize: TileSize, WorldMapType.Forest));
+            _maps.Add(WorldMapType.Dungeon, new TileMap(width: 36, height: 28, tileSize: TileSize, WorldMapType.Dungeon));
             _map = _maps[WorldMapType.Village];
             _player = new Player(_map.SpawnPoint, TileSize, tilesPerSecond: 8f);
             _player.OnTileEntered += OnPlayerEnteredTile;
+            _player.OnSwingImpact += OnPlayerSwingImpact;
+            _enemies[WorldMapType.Village] = new List<Enemy>();
+            _enemies[WorldMapType.Forest] = new List<Enemy>();
+            _enemies[WorldMapType.Dungeon] = new List<Enemy>();
 
             _camera = new Camera2D(
                 _graphics.PreferredBackBufferWidth,
@@ -108,20 +131,19 @@ namespace TileQuest
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            _tree1Texture = LoadTexture("Trees/Tree1.png");
-            _tree2Texture = LoadTexture("Trees/Tree 2.png");
-            _tree3Texture = LoadTexture("Trees/Tree 3.png");
             _treeTextures = new[]
             {
-                _tree1Texture,
-                _tree2Texture,
-                _tree3Texture,
+                LoadTexture("Trees/Tree1.png"),
+                LoadTexture("Trees/Tree 2.png"),
+                LoadTexture("Trees/Tree 3.png"),
                 LoadTexture("Trees/Tree 4.png"),
                 LoadTexture("Trees/Tree 5.png"),
                 LoadTexture("Trees/Tree 6.png"),
                 LoadTexture("Trees/Tree 7.png"),
                 LoadTexture("Trees/Tree 8.png"),
             };
+            _villageGroundTexture = LoadTexture("village_ground.png");
+            _villageObjectsTexture = LoadTexture("village_objects.png");
             _floorTilesTexture = LoadTexture("Ground/Tiles/Floors_Tiles.png");
             _pathCorners = new PathCorners(GraphicsDevice, _floorTilesTexture);
             _vegetationTexture = LoadTexture("Vegetation/Vegetation.png");
@@ -131,28 +153,21 @@ namespace TileQuest
             _house1Texture = LoadTexture("Buildings/HOUSE 1.png");
             _house2Texture = LoadTexture("Buildings/HOUSE 2.png");
             _playerTexture = LoadTexture("Characters/player.png");
+            _wizardTexture = LoadTexture("npc_sprite.png");
+            _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
             _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
             _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
-            ForestTmxMap forestMap = _maps[WorldMapType.Forest].ForestMap
-                ?? throw new InvalidOperationException("The forest TMX map was not loaded.");
-            foreach (ForestTmxTileset tileset in forestMap.Tilesets)
+            _dungeonTexture = LoadTexture("dungeon.png");
+            foreach (string file in ForestLayout.Sprites.Select(sprite => sprite.File).Distinct(StringComparer.Ordinal))
             {
-                IEnumerable<string> imageNames = tileset.ImageName is not null
-                    ? new[] { tileset.ImageName }
-                    : tileset.TileImages.Values.Select(image => image.ImageName).Distinct(StringComparer.OrdinalIgnoreCase);
-                foreach (string imageName in imageNames)
-                {
-                    if (!_forestTmxTextures.ContainsKey(imageName))
-                    {
-                        _forestTmxTextures.Add(
-                            imageName,
-                            LoadTexture(GetForestTilesetPath(imageName)));
-                    }
-                }
+                _forestSprites.Add(file, LoadTexture(file));
             }
+            ValidateVillageLayer(_villageGroundTexture, "village_ground.png");
+            ValidateVillageLayer(_villageObjectsTexture, "village_objects.png");
+            ValidateDungeonBackground();
 
             _propSheets[PropSheet.Rocks] = _rocksTexture;
             _propSheets[PropSheet.Vegetation] = _vegetationTexture;
@@ -162,7 +177,11 @@ namespace TileQuest
             }
             _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
             _pixelTexture.SetData(new[] { Color.White });
+            CreateDungeonVignette();
             PrepareMapVisuals();
+
+            // After the forest trunk tiles are set, so enemies never spawn on one.
+            SpawnTrainingEnemies();
         }
 
         // Direct-load, no Content Pipeline: reads PNG bytes straight from the
@@ -172,6 +191,55 @@ namespace TileQuest
         {
             using Stream stream = TitleContainer.OpenStream($"Content/{fileName}");
             return Texture2D.FromStream(GraphicsDevice, stream);
+        }
+
+        private void ValidateVillageLayer(Texture2D texture, string fileName)
+        {
+            TileMap village = _maps[WorldMapType.Village];
+            if (texture.Width != village.Width * 16 || texture.Height != village.Height * 16)
+            {
+                throw new InvalidDataException(
+                    $"Village layer '{fileName}' is {texture.Width}x{texture.Height}px; " +
+                    $"expected {village.Width * 16}x{village.Height * 16}px.");
+            }
+        }
+
+        private void ValidateDungeonBackground()
+        {
+            TileMap dungeon = _maps[WorldMapType.Dungeon];
+            if (_dungeonTexture.Width != dungeon.Width * 16 ||
+                _dungeonTexture.Height != dungeon.Height * 16)
+            {
+                throw new InvalidDataException(
+                    $"Dungeon background is {_dungeonTexture.Width}x{_dungeonTexture.Height}px; " +
+                    $"expected {dungeon.Width * 16}x{dungeon.Height * 16}px.");
+            }
+        }
+
+        private void CreateDungeonVignette()
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            int width = viewport.Width;
+            int height = viewport.Height;
+            var pixels = new Color[width * height];
+            float maxDistance = MathF.Sqrt(2f);
+
+            for (int y = 0; y < height; y++)
+            {
+                float normalizedY = 2f * y / (height - 1) - 1f;
+                for (int x = 0; x < width; x++)
+                {
+                    float normalizedX = 2f * x / (width - 1) - 1f;
+                    float distance = MathF.Sqrt(normalizedX * normalizedX + normalizedY * normalizedY) / maxDistance;
+                    float fade = Math.Clamp((distance - 0.2f) / 0.8f, 0f, 1f);
+                    fade = fade * fade * (3f - 2f * fade);
+                    byte alpha = (byte)(70f + 160f * fade);
+                    pixels[y * width + x] = new Color(0, 0, 0, (int)alpha);
+                }
+            }
+
+            _dungeonVignetteTexture = new Texture2D(GraphicsDevice, width, height);
+            _dungeonVignetteTexture.SetData(pixels);
         }
 
         private void PrepareMapVisuals()
@@ -194,6 +262,73 @@ namespace TileQuest
                 .OrderBy(item => item.BaseY)
                 .ThenBy(item => item is DepthSortedStructure ? 0 : 1)
                 .ToArray();
+        }
+
+        // Places a few stationary targets near each map's spawn point so the
+        // swing has something to hit.
+        private void SpawnTrainingEnemies()
+        {
+            foreach (var (mapType, map) in _maps)
+            {
+                List<Enemy> enemies = _enemies[mapType];
+                foreach (Point offset in TrainingEnemyOffsets)
+                {
+                    if (enemies.Count >= MaxTrainingEnemiesPerMap)
+                    {
+                        break;
+                    }
+
+                    var tile = new Point(map.SpawnPoint.X + offset.X, map.SpawnPoint.Y + offset.Y);
+                    if (map.IsWalkable(tile))
+                    {
+                        enemies.Add(new Enemy(tile, TileSize, EnemyMaxHealth));
+                    }
+                }
+            }
+        }
+
+        private bool IsEnemyAt(Point tile)
+        {
+            return _enemies[_map.MapType].Any(enemy => enemy.IsAlive && enemy.GridPosition == tile);
+        }
+
+        // Called once per swing, when the blow lands. Every living enemy standing
+        // in one of the swing tiles takes damage and is shoved one tile away
+        // from the player, if that tile is free.
+        private void OnPlayerSwingImpact(IReadOnlyList<Point> swingTiles)
+        {
+            Point push = _player.FacingVector;
+            foreach (Enemy enemy in _enemies[_map.MapType])
+            {
+                if (!enemy.IsAlive || !swingTiles.Contains(enemy.GridPosition))
+                {
+                    continue;
+                }
+
+                enemy.TakeDamage(SwingDamage);
+                if (!enemy.IsAlive)
+                {
+                    continue;
+                }
+
+                var destination = new Point(enemy.GridPosition.X + push.X, enemy.GridPosition.Y + push.Y);
+                if (_map.IsWalkable(destination) && destination != _player.GridPosition && !IsEnemyAt(destination))
+                {
+                    enemy.KnockBackTo(destination);
+                }
+            }
+        }
+
+        private void UpdateEnemies(GameTime gameTime)
+        {
+            float deltaSeconds = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            List<Enemy> enemies = _enemies[_map.MapType];
+            foreach (Enemy enemy in enemies)
+            {
+                enemy.Update(deltaSeconds);
+            }
+
+            enemies.RemoveAll(enemy => enemy.ShouldRemove);
         }
 
         private bool WasPressed(KeyboardState keyboard, Keys key)
@@ -237,7 +372,7 @@ namespace TileQuest
         private void DrawTravelPrompt(MapTravel travel)
         {
             const int boxWidth = 340;
-            const int boxHeight = 62;
+            const int boxHeight = 78;
             int x = (_graphics.PreferredBackBufferWidth - boxWidth) / 2;
             int y = _graphics.PreferredBackBufferHeight - boxHeight - 18;
 
@@ -246,8 +381,15 @@ namespace TileQuest
             _spriteBatch.Draw(_pixelTexture, new Rectangle(x, y, boxWidth, 2), Color.Gold);
             _spriteBatch.Draw(_pixelTexture, new Rectangle(x, y + boxHeight - 2, boxWidth, 2), Color.Gold);
 
-            string destination = travel.Destination == WorldMapType.Forest ? "FOREST" : "VILLAGE";
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, $"{destination}? Y=YES N=NO", new Point(x + 18, y + 20), 2, Color.White);
+            string destination = travel.Destination switch
+            {
+                WorldMapType.Village => "VILLAGE",
+                WorldMapType.Forest => "FOREST",
+                WorldMapType.Dungeon => "DUNGEON",
+                _ => throw new ArgumentOutOfRangeException(nameof(travel), travel.Destination, "Unknown travel destination."),
+            };
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, $"ENTER THE {destination}?", new Point(x + 18, y + 12), 2, Color.White);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "Y=YES N=NO", new Point(x + 18, y + 48), 2, Color.White);
             _spriteBatch.End();
         }
 
@@ -276,7 +418,18 @@ namespace TileQuest
             }
             else
             {
-                _player.Update(gameTime, _map, keyboard);
+                bool attackPressed = WasPressed(keyboard, Keys.Space) || WasPressed(keyboard, Keys.J);
+                if (_map.MapType == WorldMapType.Village &&
+                    WasPressed(keyboard, Keys.E) &&
+                    IsPlayerBesideWizard())
+                {
+                    _pendingTravel = new MapTravel(
+                        WorldMapType.Forest,
+                        _maps[WorldMapType.Forest].SpawnPoint);
+                }
+
+                _player.Update(gameTime, _map, keyboard, attackPressed, IsEnemyAt);
+                UpdateEnemies(gameTime);
             }
 
             _camera.Update(gameTime, _player.PixelPosition, followSpeed: 8f);
@@ -291,18 +444,50 @@ namespace TileQuest
 
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
 
-            DrawTiles();
             if (_map.MapType == WorldMapType.Village)
             {
-                DrawVillageGroundDetails();
-                DrawVillagePlants();
-                DrawTreeShadows();
-                DrawRocks();
+                DrawVillageGround();
+                DrawVillageObjectsBehindPlayer();
+                bool wizardBehindPlayer =
+                    (VillageCollisionLayout.WizardPosition.Y + 1) * TileSize <=
+                    _player.PixelPosition.Y + TileSize;
+                if (wizardBehindPlayer)
+                {
+                    DrawWizard();
+                }
+                DrawPlayer();
+                if (!wizardBehindPlayer)
+                {
+                    DrawWizard();
+                }
+                DrawVillageObjectsInFrontOfPlayer();
+            }
+            else if (_map.MapType == WorldMapType.Dungeon)
+            {
+                DrawDungeon();
                 DrawTreesAndPlayer(gameTime);
             }
             else
             {
-                DrawForestTmxMap(gameTime);
+                if (_map.MapType == WorldMapType.Forest && !ForestLayout.UseGeneratedVisuals)
+                {
+                    DrawForestSpriteLayer(ForestLayout.SpriteLayer.Ground);
+                    DrawForestExitMarkers();
+                    DrawForestSpriteLayer(ForestLayout.SpriteLayer.BehindPlayer);
+                }
+                else
+                {
+                    DrawTiles();
+                }
+                DrawGroundDetails();
+                DrawVillagePlants();
+                DrawTreeShadows();
+                DrawRocks();
+                DrawTreesAndPlayer(gameTime);
+                if (_map.MapType == WorldMapType.Forest && !ForestLayout.UseGeneratedVisuals)
+                {
+                    DrawForestSpriteLayer(ForestLayout.SpriteLayer.OverPlayer);
+                }
             }
 
             if (_showHitboxes)
@@ -312,6 +497,16 @@ namespace TileQuest
 
             _spriteBatch.End();
 
+            if (_map.MapType == WorldMapType.Dungeon)
+            {
+                _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+                _spriteBatch.Draw(
+                    _dungeonVignetteTexture,
+                    GraphicsDevice.Viewport.Bounds,
+                    Color.White);
+                _spriteBatch.End();
+            }
+
             if (_pendingTravel is MapTravel travel)
             {
                 DrawTravelPrompt(travel);
@@ -320,13 +515,125 @@ namespace TileQuest
             base.Draw(gameTime);
         }
 
-        private void DrawTiles()
+        private void DrawForestExitMarkers()
         {
-            if (_map.MapType == WorldMapType.Forest)
+            foreach (var (position, tile) in _map.AllTiles())
+            {
+                if (tile == TileType.ForestExit)
+                {
+                    DrawTravelMarker(position, Color.LimeGreen);
+                }
+            }
+        }
+
+        private void DrawDungeon()
+        {
+            _spriteBatch.Draw(
+                _dungeonTexture,
+                new Rectangle(0, 0, _map.Width * TileSize, _map.Height * TileSize),
+                Color.White);
+        }
+
+        private void DrawForestSpriteLayer(ForestLayout.SpriteLayer layer)
+        {
+            int scale = TileSize / TileSprites.GridSize;
+            foreach (ForestLayout.ForestSprite sprite in ForestLayout.Sprites)
+            {
+                if (sprite.Layer != layer)
+                {
+                    continue;
+                }
+
+                Texture2D texture = _forestSprites[sprite.File];
+                var destination = new Rectangle(
+                    sprite.TileX * TileSize,
+                    sprite.TileY * TileSize,
+                    texture.Width * scale,
+                    texture.Height * scale);
+                _spriteBatch.Draw(
+                    texture,
+                    destination,
+                    sourceRectangle: null,
+                    Color.White,
+                    rotation: 0f,
+                    origin: Vector2.Zero,
+                    effects: sprite.Flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None,
+                    layerDepth: 0f);
+            }
+        }
+
+        private bool IsPlayerBesideWizard()
+        {
+            Point playerPosition = _player.GridPosition;
+            Point wizardPosition = VillageCollisionLayout.WizardPosition;
+            return Math.Abs(playerPosition.X - wizardPosition.X) +
+                   Math.Abs(playerPosition.Y - wizardPosition.Y) <= 1;
+        }
+
+        private void DrawWizard()
+        {
+            Point position = VillageCollisionLayout.WizardPosition;
+            var destination = new Rectangle(
+                position.X * TileSize,
+                (position.Y + 1) * TileSize - _wizardTexture.Height,
+                _wizardTexture.Width,
+                _wizardTexture.Height);
+            _spriteBatch.Draw(_wizardTexture, destination, Color.White);
+        }
+
+        private void DrawVillageGround()
+        {
+            _spriteBatch.Draw(
+                _villageGroundTexture,
+                new Rectangle(0, 0, _map.Width * TileSize, _map.Height * TileSize),
+                Color.White);
+        }
+
+        private int GetVillageObjectSplitY()
+        {
+            float scale = TileSize / 16f;
+            return Math.Clamp(
+                (int)MathF.Floor((_player.PixelPosition.Y + TileSize) / scale),
+                0,
+                _villageObjectsTexture.Height);
+        }
+
+        private void DrawVillageObjectsBehindPlayer()
+        {
+            int splitY = GetVillageObjectSplitY();
+            if (splitY == 0)
             {
                 return;
             }
 
+            var source = new Rectangle(0, 0, _villageObjectsTexture.Width, splitY);
+            var destination = new Rectangle(0, 0, _map.Width * TileSize, splitY * 2);
+            _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
+        }
+
+        private void DrawVillageObjectsInFrontOfPlayer()
+        {
+            int splitY = GetVillageObjectSplitY();
+            if (splitY == _villageObjectsTexture.Height)
+            {
+                return;
+            }
+
+            var source = new Rectangle(
+                0,
+                splitY,
+                _villageObjectsTexture.Width,
+                _villageObjectsTexture.Height - splitY);
+            var destination = new Rectangle(
+                0,
+                splitY * 2,
+                _map.Width * TileSize,
+                (_villageObjectsTexture.Height - splitY) * 2);
+            _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
+        }
+
+        private void DrawTiles()
+        {
             foreach (var (gridPos, tile) in _map.AllTiles())
             {
                 var rect = new Rectangle(gridPos.X * TileSize, gridPos.Y * TileSize, TileSize, TileSize);
@@ -377,183 +684,6 @@ namespace TileQuest
                 _pixelTexture,
                 new Rectangle(x + 10, y + 10, TileSize - 20, TileSize - 20),
                 Color.Black);
-        }
-
-        private string GetForestTilesetPath(string imageName)
-        {
-            return imageName switch
-            {
-                "Wall_Tiles.png" => "Environment/Tilesets/Wall_Tiles.png",
-                "Floors_Tiles.png" => "Ground/Tiles/Floors_Tiles.png",
-                "Wall_Variations.png" => "Environment/Tilesets/Wall_Variations.png",
-                "Vegetation.png" => "Vegetation/Vegetation.png",
-                "Rocks.png" => "Rocks/Rocks.png",
-                "Props.png" => "Environment/Structures/Buildings/Props.png",
-                "Size_04 (1).png" => "Environment/Props/Static/Trees/Model_03/Size_04.png",
-                "Size_04.png" => "Trees/Tree 5.png",
-                "Size_05 (1).png" => "Trees/Tree 8.png",
-                "Size_05.png" => "Trees/Tree 6.png",
-                "Tree 2.png" => "Trees/Tree 2.png",
-                "Tree 3.png" => "Trees/Tree 3.png",
-                _ => throw new InvalidDataException(
-                    $"No forest texture is configured for TMX tileset image '{imageName}'."),
-            };
-        }
-
-        private void DrawForestTmxMap(GameTime gameTime)
-        {
-            ForestTmxMap forestMap = _map.ForestMap
-                ?? throw new InvalidOperationException("The active forest map has no TMX data.");
-            float playerFootY = _player.PixelPosition.Y + TileSize;
-
-            foreach (ForestTmxLayer layer in forestMap.Layers)
-            {
-                if (!layer.Visible)
-                {
-                    continue;
-                }
-
-                if (layer.Name == ForestTmxMap.TreesLayerName)
-                {
-                    bool playerDrawn = false;
-                    for (int tileIndex = 0; tileIndex < layer.GlobalTileIds.Length; tileIndex++)
-                    {
-                        int tileY = tileIndex / forestMap.Width;
-                        if (!playerDrawn && (tileY + 1) * TileSize > playerFootY)
-                        {
-                            DrawPlayer();
-                            playerDrawn = true;
-                        }
-
-                        DrawForestTmxTile(forestMap, layer.GlobalTileIds[tileIndex], tileIndex);
-                    }
-
-                    if (!playerDrawn)
-                    {
-                        DrawPlayer();
-                    }
-                    continue;
-                }
-
-                for (int tileIndex = 0; tileIndex < layer.GlobalTileIds.Length; tileIndex++)
-                {
-                    DrawForestTmxTile(forestMap, layer.GlobalTileIds[tileIndex], tileIndex);
-                }
-            }
-
-            foreach (var (position, tile) in _map.AllTiles())
-            {
-                if (tile == TileType.VillageExit)
-                {
-                    DrawTravelMarker(position, Color.Goldenrod);
-                }
-            }
-        }
-
-        private void DrawForestTmxTile(ForestTmxMap forestMap, uint globalTileId, int tileIndex)
-        {
-            uint tileId = ForestTmxMap.GetTileId(globalTileId);
-            if (tileId == 0)
-            {
-                return;
-            }
-
-            ForestTmxTileset tileset = forestMap.Tilesets.Last(candidate =>
-                tileId >= candidate.FirstGlobalId &&
-                tileId - candidate.FirstGlobalId < candidate.TileCount);
-            int localTileId = (int)(tileId - tileset.FirstGlobalId);
-            ForestTmxTileImage tileImage = tileset.GetTileImage(localTileId);
-            var source = new Rectangle(
-                tileImage.X,
-                tileImage.Y,
-                tileImage.Width,
-                tileImage.Height);
-            int tileX = tileIndex % forestMap.Width;
-            int tileY = tileIndex / forestMap.Width;
-            float scale = TileSize / (float)forestMap.TileWidth;
-            Vector2 center = new(
-                (tileX * forestMap.TileWidth + tileImage.Width / 2f) * scale,
-                (tileY * forestMap.TileHeight + forestMap.TileHeight -
-                 tileImage.Height / 2f) * scale);
-            GetTileTransform(globalTileId, out float rotation, out SpriteEffects effects);
-            _spriteBatch.Draw(
-                _forestTmxTextures[tileImage.ImageName],
-                center,
-                source,
-                Color.White,
-                rotation,
-                new Vector2(tileImage.Width / 2f, tileImage.Height / 2f),
-                scale,
-                effects,
-                0f);
-        }
-
-        private static void GetTileTransform(uint globalTileId, out float rotation, out SpriteEffects effects)
-        {
-            const uint horizontalFlag = 0x80000000;
-            const uint verticalFlag = 0x40000000;
-            const uint diagonalFlag = 0x20000000;
-            bool horizontal = (globalTileId & horizontalFlag) != 0;
-            bool vertical = (globalTileId & verticalFlag) != 0;
-            bool diagonal = (globalTileId & diagonalFlag) != 0;
-
-            int a = 1, b = 0, c = 0, d = 1;
-            if (diagonal)
-            {
-                (a, b, c, d) = (c, d, a, b);
-            }
-            if (horizontal)
-            {
-                (a, b) = (-a, -b);
-            }
-            if (vertical)
-            {
-                (c, d) = (-c, -d);
-            }
-
-            for (int quarterTurns = 0; quarterTurns < 4; quarterTurns++)
-            {
-                int cos = quarterTurns switch { 0 => 1, 2 => -1, _ => 0 };
-                int sin = quarterTurns switch { 1 => 1, 3 => -1, _ => 0 };
-                for (int flipX = 0; flipX < 2; flipX++)
-                {
-                    for (int flipY = 0; flipY < 2; flipY++)
-                    {
-                        int scaleX = flipX == 0 ? 1 : -1;
-                        int scaleY = flipY == 0 ? 1 : -1;
-                        if (cos * scaleX == a && -sin * scaleY == b &&
-                            sin * scaleX == c && cos * scaleY == d)
-                        {
-                            rotation = quarterTurns * MathHelper.PiOver2;
-                            effects = (flipX == 0 ? SpriteEffects.None : SpriteEffects.FlipHorizontally) |
-                                      (flipY == 0 ? SpriteEffects.None : SpriteEffects.FlipVertically);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            throw new InvalidOperationException("The forest TMX tile has an unsupported flip transform.");
-        }
-
-        private void DrawForestBottomCanopy()
-        {
-            if (_map.MapType == WorldMapType.Forest)
-            {
-                DrawTree.DrawBottomCanopy(
-                    _spriteBatch, _treeTextures,
-                    _map.Width, _map.Height, TileSize);
-            }
-        }
-
-        private void DrawForestLeftCornerCanopyOverlay()
-        {
-            if (_map.MapType == WorldMapType.Forest)
-            {
-                DrawTree.DrawLeftCornerCanopyOverlay(
-                    _spriteBatch, _treeTextures,
-                    _map.Width, _map.Height, TileSize);
-            }
         }
 
         private void DrawForestTerrain()
@@ -694,7 +824,7 @@ namespace TileQuest
         // Purely visual and deterministic (position hash), like DrawRock: tiny
         // pebbles on bare grass and reed clumps on tall-grass tiles. Both stay
         // walkable and never change the map.
-        private void DrawVillageGroundDetails()
+        private void DrawGroundDetails()
         {
             int scale = TileSize / TileSprites.GridSize;
             foreach (var (position, tile) in _map.AllTiles())
@@ -765,6 +895,15 @@ namespace TileQuest
                     new Rectangle(prop.Tile.X * TileSize, prop.Tile.Y * TileSize, TileSize, TileSize),
                     tileColor);
             }
+
+            // The tiles the player's swing would cover from where they stand.
+            foreach (Point swingTile in _player.GetSwingTiles())
+            {
+                DrawOutlinedBox(
+                    new Rectangle(swingTile.X * TileSize, swingTile.Y * TileSize, TileSize, TileSize),
+                    Color.Cyan);
+            }
+
         }
 
         private void DrawOutlinedBox(Rectangle box, Color color)
@@ -952,31 +1091,111 @@ namespace TileQuest
             }
         }
 
+        // Draws the player together with the enemies and the swing effect, so
+        // enemies north of the player's feet go behind the player and the rest
+        // in front. (Enemies are not depth sorted against trees/structures.)
         private void DrawPlayer()
         {
+            float playerFootY = _player.PixelPosition.Y + TileSize;
+            List<Enemy> enemies = _enemies[_map.MapType];
+
+            foreach (Enemy enemy in enemies.Where(e => e.PixelPosition.Y + TileSize <= playerFootY)
+                                           .OrderBy(e => e.PixelPosition.Y))
+            {
+                DrawEnemy(enemy);
+            }
+
+            DrawPlayerSprite();
+
+            foreach (Enemy enemy in enemies.Where(e => e.PixelPosition.Y + TileSize > playerFootY)
+                                           .OrderBy(e => e.PixelPosition.Y))
+            {
+                DrawEnemy(enemy);
+            }
+
+            if (_player.IsAttacking)
+            {
+                DrawSwingEffect();
+            }
+        }
+
+        private void DrawEnemy(Enemy enemy)
+        {
+            int frame = (int)(enemy.AnimationTime * EnemyFramesPerSecond) % EnemyFrameCount;
+            var source = new Rectangle(frame * EnemyCellSize, 0, EnemyCellSize, EnemyCellSize);
+
+            float scale = TileSize / (float)EnemySpriteHeight;
+            int size = (int)Math.Round(EnemyCellSize * scale);
+            int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2;
+            int y = (int)enemy.PixelPosition.Y + TileSize - size;
+
+            Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
+            tint *= enemy.DeathFade;
+            _spriteBatch.Draw(_enemyTexture, new Rectangle(x, y, size, size), source, tint);
+
+            if (enemy.IsAlive && enemy.Health < enemy.MaxHealth)
+            {
+                int barWidth = TileSize - 8;
+                int barX = (int)enemy.PixelPosition.X + 4;
+                int barY = (int)enemy.PixelPosition.Y - 4;
+                int filled = (int)Math.Round(barWidth * (enemy.Health / (float)enemy.MaxHealth));
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(barX - 1, barY - 1, barWidth + 2, 5), Color.Black * 0.8f);
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, barWidth, 3), new Color(120, 20, 20));
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, filled, 3), Color.LimeGreen);
+            }
+        }
+
+        // A bright band sweeps across the swing tiles from one side to the other
+        // as the swing progresses.
+        private void DrawSwingEffect()
+        {
+            IReadOnlyList<Point> tiles = _player.GetSwingTiles();
+            float sweepPosition = _player.AttackProgress * tiles.Count;
+            Color swingColor = Color.Lerp(Color.White, Color.Gold, 0.4f);
+
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                float intensity = Math.Max(0f, 1f - Math.Abs(sweepPosition - (i + 0.5f)));
+                if (intensity <= 0f)
+                {
+                    continue;
+                }
+
+                var box = new Rectangle(tiles[i].X * TileSize, tiles[i].Y * TileSize, TileSize, TileSize);
+                _spriteBatch.Draw(_pixelTexture, box, swingColor * (0.55f * intensity));
+            }
+        }
+
+        private void DrawPlayerSprite()
+        {
+            bool isAttacking = _player.IsAttacking;
             int row = _player.Facing switch
             {
-                FacingDirection.Down => 0,
-                FacingDirection.Up => 2,
-                _ => 1, // Left and Right share the side row
+                FacingDirection.Down => isAttacking ? 6 : 0,
+                FacingDirection.Up => isAttacking ? 8 : 2,
+                _ => isAttacking ? 7 : 1, // Left and Right share the side row
             };
-            if (_player.IsWalking)
+            if (_player.IsWalking && !isAttacking)
             {
                 row += 3;
             }
 
-            int frame = _player.IsWalking
-                ? (int)(_player.AnimationTime * WalkFramesPerSecond) % PlayerFrameCount
-                : 0;
+            int frame = isAttacking
+                ? Math.Min(PlayerSwingFrameCount - 1, (int)(_player.AttackProgress * PlayerSwingFrameCount))
+                : _player.IsWalking
+                    ? (int)(_player.AnimationTime * WalkFramesPerSecond) % PlayerFrameCount
+                    : 0;
 
-            var source = new Rectangle(
-                frame * PlayerCellSize + PlayerCrop.X,
-                row * PlayerCellSize + PlayerCrop.Y,
-                PlayerCrop.Width,
-                PlayerCrop.Height);
+            var source = isAttacking
+                ? new Rectangle(frame * PlayerCellSize, row * PlayerCellSize, PlayerCellSize, PlayerCellSize)
+                : new Rectangle(
+                    frame * PlayerCellSize + PlayerCrop.X,
+                    row * PlayerCellSize + PlayerCrop.Y,
+                    PlayerCrop.Width,
+                    PlayerCrop.Height);
 
             float scale = TileSize / (float)PlayerSpriteHeight;
-            int size = (int)Math.Round(PlayerCrop.Width * scale);
+            int size = (int)Math.Round(source.Width * scale);
             int x = (int)_player.PixelPosition.X + (TileSize - size) / 2;
             int y = (int)_player.PixelPosition.Y + TileSize - size;
             var destination = new Rectangle(x, y, size, size);

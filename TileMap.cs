@@ -25,6 +25,8 @@ namespace TileQuest
         ShopNPC,
         ForestExit,
         VillageExit,
+        ForestDungeonEntrance,
+        DungeonExit,
         VillageLantern,
         VillagePaving,
         VillageFlower,
@@ -110,7 +112,8 @@ namespace TileQuest
     public enum WorldMapType
     {
         Village,
-        Forest
+        Forest,
+        Dungeon
     }
 
     public readonly record struct MapTravel(WorldMapType Destination, Point ArrivalPoint);
@@ -126,15 +129,12 @@ namespace TileQuest
         public WorldMapType MapType { get; }
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
-        internal ForestTmxMap? ForestMap { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
         public IReadOnlyList<VillageProp> VillageProps { get; }
         public IReadOnlyList<VillageProp> Props => VillageProps;
 
         private readonly Dictionary<Point, TileType> _tiles;
         private readonly Dictionary<Point, MapTravel> _travelPoints = new();
-        private readonly HashSet<Point> _forestWalkableTiles;
-        private readonly HashSet<Point> _forestTreeAnchorTiles;
 
         public TileMap(int width, int height, int tileSize)
             : this(width, height, tileSize, WorldMapType.Village)
@@ -143,73 +143,57 @@ namespace TileQuest
 
         public TileMap(int width, int height, int tileSize, WorldMapType mapType)
         {
+            Width = width;
+            Height = height;
             TileSize = tileSize;
             MapType = mapType;
 
             if (mapType == WorldMapType.Village)
             {
-                Width = width;
-                Height = height;
-                _forestWalkableTiles = new HashSet<Point>();
-                _forestTreeAnchorTiles = new HashSet<Point>();
-                _tiles = VillageGenerator.Generate(
-                    width, height, out var spawnPoint, out var villageStructures, out var villageProps);
-                SpawnPoint = spawnPoint;
-                VillageStructures = villageStructures;
-                VillageProps = villageProps;
+                _tiles = CreateCollisionTiles(
+                    VillageCollisionLayout.Rows, width, height, nameof(VillageCollisionLayout));
+                SpawnPoint = VillageCollisionLayout.SpawnPoint;
+                VillageStructures = Array.Empty<VillageStructure>();
+                VillageProps = Array.Empty<VillageProp>();
+            }
+            else if (mapType == WorldMapType.Forest)
+            {
+                _tiles = ForestGenerator.Generate(
+                    width, height, new Random(), out var forestSpawn, out var forestProps);
+                SpawnPoint = forestSpawn;
+                VillageStructures = Array.Empty<VillageStructure>();
+                VillageProps = forestProps;
                 AddTravelPoint(
-                    new Point(width / 2, height - 1),
+                    ForestLayout.Gate,
                     TileType.ForestExit,
-                    WorldMapType.Forest,
-                    new Point(width / 2, height / 2));
+                    WorldMapType.Village,
+                    VillageCollisionLayout.SpawnPoint);
+                int firstEntranceTile = ForestLayout.DungeonEntrance.X -
+                                        ForestLayout.DungeonEntranceWidth / 2;
+                for (int offset = 0; offset < ForestLayout.DungeonEntranceWidth; offset++)
+                {
+                    AddTravelPoint(
+                        new Point(firstEntranceTile + offset, ForestLayout.DungeonEntrance.Y),
+                        TileType.ForestDungeonEntrance,
+                        WorldMapType.Dungeon,
+                        DungeonCollisionLayout.SpawnPoint);
+                }
             }
             else
             {
-                ForestMap = ForestTmxMap.Load();
-                Width = ForestMap.Width;
-                Height = ForestMap.Height;
-                _forestWalkableTiles = ForestMap.WalkableTiles;
-                _forestTreeAnchorTiles = ForestMap.TreeAnchorTiles;
-                SpawnPoint = new Point(Width / 2, Height / 2);
-                if (!_forestWalkableTiles.Contains(SpawnPoint) ||
-                    _forestTreeAnchorTiles.Contains(SpawnPoint))
-                {
-                    throw new InvalidOperationException(
-                        $"The forest spawn point x={SpawnPoint.X}, y={SpawnPoint.Y} is outside the walkable foothill or on a tree base.");
-                }
-                _tiles = new Dictionary<Point, TileType>(Width * Height);
-                for (int y = 0; y < Height; y++)
-                {
-                    for (int x = 0; x < Width; x++)
-                    {
-                        _tiles[new Point(x, y)] = TileType.Grass;
-                    }
-                }
+                _tiles = CreateCollisionTiles(
+                    DungeonCollisionLayout.Rows, width, height, nameof(DungeonCollisionLayout));
+                SpawnPoint = DungeonCollisionLayout.SpawnPoint;
                 VillageStructures = Array.Empty<VillageStructure>();
                 VillageProps = Array.Empty<VillageProp>();
                 AddTravelPoint(
-                    SpawnPoint,
-                    TileType.VillageExit,
-                    WorldMapType.Village,
-                    new Point(width / 2, height - 2));
+                    DungeonCollisionLayout.Exit,
+                    TileType.DungeonExit,
+                    WorldMapType.Forest,
+                    ForestLayout.DungeonEntrance);
             }
 
-            Dictionary<Point, TileType> graphTiles = _tiles;
-            if (MapType == WorldMapType.Forest)
-            {
-                graphTiles = new Dictionary<Point, TileType>();
-                foreach (Point position in _forestWalkableTiles)
-                {
-                    if (position.X >= 0 && position.X < Width &&
-                        position.Y >= 0 && position.Y < Height &&
-                        !_forestTreeAnchorTiles.Contains(position))
-                    {
-                        graphTiles[position] = TileType.Grass;
-                    }
-                }
-            }
-
-            var graph = new TileGraph(graphTiles);
+            var graph = new TileGraph(_tiles);
             IsFullyConnected = graph.IsFullyConnected(SpawnPoint, out var unreachableCount);
             Console.WriteLine(IsFullyConnected
                 ? "[TileGraph] BFS connectivity check: OK, all ground reachable from spawn."
@@ -226,22 +210,20 @@ namespace TileQuest
             return _tiles.TryGetValue(gridPos, out var tile) ? tile : TileType.Wall;
         }
 
-        // Village buildings, trees and rocks use sprite bounds so their visible
-        // size controls occupied space.
+        // Building, tree and rock anchors are checked against their sprite
+        // collision bounds below, so their visible size controls occupied space.
         public bool IsWalkable(Point gridPos)
         {
-            if (MapType == WorldMapType.Forest)
+            if (MapType == WorldMapType.Forest && ForestLayout.UseGeneratedVisuals && IsUnderCliffFace(gridPos))
             {
-                return gridPos.X >= 0 && gridPos.X < Width &&
-                       gridPos.Y >= 0 && gridPos.Y < Height &&
-                       _forestWalkableTiles.Contains(gridPos) &&
-                       !_forestTreeAnchorTiles.Contains(gridPos);
+                return false;
             }
 
             var tile = GetTile(gridPos);
             bool isWalkableGround =
                 tile == TileType.Grass || tile == TileType.TallGrass || tile == TileType.DirtPath ||
                 tile == TileType.ForestExit || tile == TileType.VillageExit ||
+                tile == TileType.ForestDungeonEntrance || tile == TileType.DungeonExit ||
                 tile == TileType.VillagePaving || tile == TileType.VillageFlower ||
                 tile == TileType.VillageGarden || tile == TileType.ForestFlower ||
                 tile == TileType.ForestFoxglove || tile == TileType.ForestMushroom ||
@@ -293,7 +275,51 @@ namespace TileQuest
             return true;
         }
 
+        // The cliff face art hangs two tiles below the last hill row, so those
+        // two grass tiles look like wall and have to block the player too.
+        private bool IsUnderCliffFace(Point gridPos)
+        {
+            return IsForestWallTile(GetTile(new Point(gridPos.X, gridPos.Y - 1))) ||
+                   IsForestWallTile(GetTile(new Point(gridPos.X, gridPos.Y - 2)));
+        }
+
+        private static bool IsForestWallTile(TileType tile) =>
+            tile == TileType.ForestHill || tile == TileType.ForestCave;
+
         public IEnumerable<KeyValuePair<Point, TileType>> AllTiles() => _tiles;
+
+        private static Dictionary<Point, TileType> CreateCollisionTiles(
+            string[] rows, int width, int height, string layoutName)
+        {
+            if (rows.Length != height)
+            {
+                throw new InvalidOperationException(
+                    $"{layoutName} has {rows.Length} rows but the map is {height} tiles tall.");
+            }
+
+            var tiles = new Dictionary<Point, TileType>(width * height);
+            for (int y = 0; y < height; y++)
+            {
+                if (rows[y].Length != width)
+                {
+                    throw new InvalidOperationException(
+                        $"{layoutName} row y={y} has {rows[y].Length} characters but the map is {width} tiles wide.");
+                }
+
+                for (int x = 0; x < width; x++)
+                {
+                    tiles[new Point(x, y)] = rows[y][x] switch
+                    {
+                        '.' => TileType.Grass,
+                        '#' => TileType.Wall,
+                        char symbol => throw new InvalidOperationException(
+                            $"{layoutName} contains unsupported symbol '{symbol}' at x={x}, y={y}."),
+                    };
+                }
+            }
+
+            return tiles;
+        }
 
         private void AddTravelPoint(Point position, TileType tile, WorldMapType destination, Point arrivalPoint)
         {

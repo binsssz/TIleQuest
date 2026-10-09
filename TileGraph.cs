@@ -58,7 +58,8 @@ namespace TileQuest
                    tile == TileType.VillageFlower || tile == TileType.VillageGarden ||
                    tile == TileType.ForestFlower || tile == TileType.ForestFoxglove ||
                    tile == TileType.ForestMushroom ||
-                   tile == TileType.ForestExit || tile == TileType.VillageExit;
+                   tile == TileType.ForestExit || tile == TileType.VillageExit ||
+                   tile == TileType.ForestDungeonEntrance || tile == TileType.DungeonExit;
         }
 
         public IReadOnlyList<Point> Neighbors(Point position)

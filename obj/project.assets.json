@@ -2,7 +2,7 @@
   "version": 4,
   "targets": {
     "net8.0": {
-      "MonoGame.Framework.DesktopGL/3.8.5.1": {
+      "MonoGame.Framework.DesktopGL/3.8.6": {
         "type": "package",
         "dependencies": {
           "MonoGame.Library.OpenAL": "1.24.3.4",
@@ -139,10 +139,10 @@
     }
   },
   "libraries": {
-    "MonoGame.Framework.DesktopGL/3.8.5.1": {
-      "sha512": "za6tOSYT2xpks932wU/WcpPu2xkUyKwn251gkRuiJ/3XPZBdwds7RPXRhtcrZGnZ2jtjtwh4upRLd+EGrrWtFw==",
+    "MonoGame.Framework.DesktopGL/3.8.6": {
+      "sha512": "pVAwFo+wNCco7881v8VAkPcls/jYVyfzxx/eSBMuT45ZqZcTFqptsZxd8KwBEE5PQc5UxbX5erGh0rwtFGsKVg==",
       "type": "package",
-      "path": "monogame.framework.desktopgl/3.8.5.1",
+      "path": "monogame.framework.desktopgl/3.8.6",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -151,7 +151,7 @@
         "build/MonoGame.Framework.DesktopGL.targets",
         "lib/net8.0/MonoGame.Framework.dll",
         "lib/net8.0/MonoGame.Framework.xml",
-        "monogame.framework.desktopgl.3.8.5.1.nupkg.sha512",
+        "monogame.framework.desktopgl.3.8.6.nupkg.sha512",
         "monogame.framework.desktopgl.nuspec"
       ]
     },
@@ -293,11 +293,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\TileQuest.csproj",
+      "projectUniqueName": "c:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\TileQuest.csproj",
       "projectName": "TileQuest",
-      "projectPath": "C:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\TileQuest.csproj",
+      "projectPath": "c:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\TileQuest.csproj",
       "packagesPath": "C:\\Users\\USER\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\obj\\",
+      "outputPath": "c:\\Users\\USER\\OneDrive - NU Cebu\\School\\DSA\\Finals\\TileQuest\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\USER\\AppData\\Roaming\\NuGet\\NuGet.Config"

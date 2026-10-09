@@ -1,47 +1,99 @@
-# Project Context
+# Project Context for AI Agents
 
-## Required Data Structures and Algorithms Topics
+## Project at a glance
 
-Choosing 5 integrated DSA topics for evaluation:
-
-1. **Stack (`ActionHistory.cs`, `PlayerAction.cs`):** Crafting, trading, and upgrade undo history (LIFO).
-2. **Queue (`WaveSpawner.cs`, `EnemySpawnInfo.cs`):** Turn-based combat processing and encounter queueing (FIFO).
-3. **Linked List (`Inventory.cs`, `Item.cs`):** Dynamic player inventory node storage with $O(1)$ node removals.
-4. **Binary Search (`BinarySearchUtil.cs`, `CraftingRecipe.cs`):** $O(\log n)$ recipe and shop item search sorted by resource cost.
-5. **Insertion Sort (`InsertionSortUtil.cs`):** In-place descending sort for inventory value views and high-score ranking.
-6. **Graph + BFS (`TileGraph.cs`):** Map walkability graph and BFS connectivity checks.
-
-## Project at a Glance
-
-- **Name:** TileQuest — Forest Village RPG
+- **Name:** TileQuest — Forest Village Defense.
 - **Purpose:** C# / MonoGame DSA course project.
-- **Design Shift:** Scope simplified from tower defense to a focused **Resource Gathering, Crafting & Simple Turn-Based Combat RPG** loop to ensure clean, bug-free implementation of all rubric requirements.
-- **Target Framework:** .NET 8 (`net8.0`).
-- **Game Engine:** `MonoGame.Framework.DesktopGL` 3.8.x.
+- **Current state:** the playable game is an overworld prototype with village
+  and forest exploration. DSA modules are implemented and self-checked, but
+  most are not integrated into player-facing gameplay.
+- **Target framework:** .NET 8 (`net8.0`).
+- **Game framework:** `MonoGame.Framework.DesktopGL` 3.8.x.
+- **Project file:** `TileQuest.csproj`.
 
-## Code Architecture Map
+## Verify progress from the code
+
+Do not treat the five-night defense arc or the old phase proposal as shipped
+features. The current build includes:
+
+- A 48x36 village generated from `villagelayout.cs`.
+- The forest loaded from `Content/forestmap.tmx`.
+- Grid-locked movement with smooth tile slides, collision, sprite animation,
+  camera follow, map travel, and a hitbox debug overlay.
+- Map validation/connectivity checks and `DsaDemo` self-checks at startup.
+- Melee combat: Space or J swings at the 3 tiles in front of the player
+  (3 wide x 1 deep, see `Player.SwingWidth`/`SwingDepth`). A swing damages and
+  knocks back stationary training enemies placed near each map's spawn point.
+  Enemies do not move, attack, or spawn from waves yet.
+- Standalone queue, stack, linked-list inventory, binary-search, and insertion
+  sort modules. These do not currently implement crafting, a shop, a full game
+  inventory, or a leaderboard.
+
+Day/night progression, harvesting, defense placement, enemy AI and wave
+spawning, player health, boss fights, story endings, and high scores are planned work unless subsequent code
+changes add them. Check the README and implementation before describing any
+feature as complete.
+
+## Important code map
 
 | File | Responsibility |
-| :--- | :--- |
-| `Program.cs` | Executes startup DSA verification (`DsaDemo`), launches `Game1`, catches startup errors |
-| `Game1.cs` | Main game loop, texture loading, map travel transitions, input, depth-sorted rendering |
-| `Player.cs` | Grid-locked tile movement, smooth pixel interpolation, facing direction, animation state |
-| `TileMap.cs` | Tile grid storage (`Dictionary<Point, TileType>`), walkability checks, travel points |
-| `VillageGenerator.cs` | Reads and validates `villagelayout.cs` grid, building footprints, and connectivity |
-| `villagelayout.cs` | Text grid definition for village map |
-| `ForestTmxMap.cs` | TMX map and tileset parser for `Content/forestmap.tmx` |
-| `TileGraph.cs` | Graph representation of walkable tiles and BFS connectivity validation |
-| `DsaDemo.cs` | Automated test runner verifying all 5 DSA modules at application startup |
-| `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Timed FIFO queue module for combat turn order / encounter processing |
-| `ActionHistory.cs`, `PlayerAction.cs` | LIFO stack module for recording and undoing player actions |
-| `Inventory.cs`, `Item.cs` | Linked-list inventory system with node management and sorted views |
-| `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Binary search algorithm and sorted recipe data structure |
-| `InsertionSortUtil.cs` | Generic descending insertion sort implementation |
-| `TileSprites.cs`, `pathcorners.cs`, `Draw*.cs` | Texture source rectangles and specialized depth-sorted visual renderers |
+| --- | --- |
+| `Program.cs` | Runs DSA self-check, creates the game, and reports startup errors |
+| `Game1.cs` | MonoGame lifecycle, asset loading, map travel, input, drawing |
+| `Player.cs` | Grid movement, smooth interpolation, facing, animation state, melee swing |
+| `Enemy.cs` | Grid-locked target with health, hit flash, knockback slide, death fade |
+| `TileMap.cs` | Map data, walkability, collision/travel points, graph checks |
+| `VillageGenerator.cs` | Parses and validates the village grid |
+| `villagelayout.cs` | Editable village map rows and legend |
+| `ForestTmxMap.cs` | Parses TMX map/tilesets/layers, forest walkable tiles, and per-tree sprite groups |
+| `ForestTrunkFinder.cs` | Measures each forest tree/stump's one blocked trunk tile from its sprite pixels |
+| `Content/forestmap.tmx` | Authoritative forest map and its TMX layer data |
+| `TileGraph.cs` | Walkable adjacency graph and breadth-first connectivity |
+| `DsaDemo.cs` | Startup checks for the DSA modules |
+| `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Timed FIFO enemy-spawn module |
+| `ActionHistory.cs`, `PlayerAction.cs` | LIFO undo-history module |
+| `Inventory.cs`, `Item.cs` | Linked-list inventory module and value-sorted snapshot |
+| `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Binary-search utility and sorted recipe sample |
+| `InsertionSortUtil.cs` | Generic descending insertion sort |
+| `TileSprites.cs`, `pathcorners.cs`, `Draw*.cs` | Sprite source rectangles and world object rendering |
 
-## Key Technical Constraints & Rules
+`ForestGenerator.cs` exists, but the live forest path in `TileMap` loads the TMX
+map; do not assume the procedural generator is used at runtime.
 
-- **Tile Size:** 32 pixels per tile.
-- **World Map Dimensions:** Village is 36 × 28 tiles; Forest is defined by `forestmap.tmx`.
-- **Texture Loading:** Textures are loaded directly via `TitleContainer.OpenStream` and `Texture2D.FromStream`. No MGCB pipeline is required.
-- **Layout Validation:** `VillageGenerator` strictly enforces spawn (`S`), gate (`X`), and walkable path connectivity. Do not bypass these checks when modifying map layouts.
+## Technical constraints and conventions
+
+- The game uses a 32-pixel tile size and currently creates 36 × 28 world maps
+  in `Game1`.
+- The forest map dimensions come from the TMX file. Its `foothill` and
+  `foothill grass` layers define walkable cells; `foothill trees` sprites are
+  grouped individually, depth sorted against the player, and each blocks one
+  trunk tile measured from its art.
+- Village map edits must preserve the expected dimensions and required spawn
+  and gate positions. The generators validate layouts and report bad symbols,
+  structure footprints, or unreachable paths; do not silently bypass these
+  checks.
+- PNG files under `Content` and `Content/forestmap.tmx` are copied to the build
+  output by the project file. Textures are loaded directly with
+  `TitleContainer.OpenStream` and `Texture2D.FromStream`; there is no
+  `Content.mgcb` pipeline.
+- Follow existing C# style: nullable reference types are enabled, implicit
+  usings are disabled, and MonoGame types are used directly.
+- Keep changes focused. Preserve current movement, collision, travel,
+  rendering, and validation behavior unless the task explicitly changes it.
+- When adding gameplay systems, distinguish module-level DSA code from code
+  actually wired into `Game1` and the player experience.
+
+## Build and smoke-check
+
+From the project directory:
+
+```sh
+dotnet restore
+dotnet build
+dotnet run
+```
+
+`dotnet run` prints DSA and map validation checks before opening the window.
+There is no separate test project in this directory; use the build and startup
+checks as the baseline, then add focused tests when introducing logic that can
+be tested independently.

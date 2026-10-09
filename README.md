@@ -26,10 +26,11 @@ The existing queue, stack, and recipe-search modules can support additional game
 ## Current Implementation Status
 
 ### Implemented & Fully Playable
-- **Village Map:** Validated 36 × 28 text-grid layout (`villagelayout.cs`) with buildings, props, paths, and player spawn.
-- **Forest Map:** Tiled TMX map (`Content/forestmap.tmx`) with walkable terrain layers and tree-trunk collision anchors.
+- **Village Map:** 48 × 36 collision grid (`CollisionMapLayouts.cs`) over `Content/villagefinal2.png`, with buildings and the pond blocked.
+- **Sprite Occlusion:** The village ground, transparent object layer, and wizard sprite are rendered separately so buildings and objects draw over the player.
+- **Forest & Dungeon Maps:** PNG backgrounds with editable string-grid collision; the forest cave connects to the dungeon.
 - **Movement & World Navigation:** 4-directional tile-locked movement with smooth pixel slides, directional animations, depth sorting, and camera follow.
-- **Map Travel:** Inter-map gate transition with interactive `Y/N` travel prompt.
+- **Map Travel:** Press `E` beside the village wizard to travel to the forest; confirm with `Y` or cancel with `N`. The forest cave leads to the dungeon.
 - **Startup Diagnostics:** BFS connectivity checks (`TileGraph`) and automated DSA module verification (`DsaDemo`).
 
 ### Standalone DSA Modules (To Be Wired to UI)
@@ -42,10 +43,8 @@ The existing queue, stack, and recipe-search modules can support additional game
 ## Roadmap
 
 - [x] MonoGame foundation, sprite rendering, tile movement, and camera
-- [x] Village & forest maps, collision, validation, and gate transitions
+- [x] Village, forest, and dungeon maps, collision, validation, and map transitions
 - [x] Standalone DSA modules and startup self-checks
-- [ ] Add a dungeon map and connect it to the existing map-travel flow
-- [ ] Add a simple dungeon puzzle guarding a resource cache (start with one puzzle type)
 - [ ] Connect interact key (`Space`/`E`) to resource gathering in the forest and dungeon
 - [ ] Connect `Inventory` linked list to an on-screen HUD string
 - [ ] Use `InsertionSortUtil` to order the displayed inventory

@@ -219,12 +219,17 @@ namespace TileQuest
 
         private static TileType VillageTreeType(Point position)
         {
-            int variant = (position.X * 31 + position.Y * 17) % 3;
+            int variant = (position.X * 31 + position.Y * 17) % 8;
             return variant switch
             {
+                0 => TileType.Tree,
                 1 => TileType.Tree2,
                 2 => TileType.Tree3,
-                _ => TileType.Tree,
+                3 => TileType.Tree4,
+                4 => TileType.Tree5,
+                5 => TileType.Tree6,
+                6 => TileType.Tree7,
+                _ => TileType.Tree8,
             };
         }
 
