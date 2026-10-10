@@ -1,55 +1,37 @@
 # TileQuest — Forest Village RPG
 
-TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms (DSA) course project built with C# and MonoGame. Its current playable prototype has a hand-authored village and forest; planned gameplay centers on gathering resources, solving simple DSA-inspired puzzles, and exploring a dungeon.
+TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms (DSA) course project built with C# and MonoGame. The current playable prototype includes a village, a forest, a dungeon, map travel, and basic melee combat. The DSA modules are demonstrated by startup checks, but most are not yet part of player-facing gameplay.
 
-## Planned Scope & Core Gameplay
+## Current Implementation
 
-The gameplay scope is intentionally small:
-1. **Explore and gather:** Travel between the village, forest, and planned dungeon to collect a small set of resources.
-2. **Manage resources:** Show collected items in a simple inventory; use the linked list to store them and insertion sort to display them in a useful order.
-3. **Solve a dungeon puzzle:** Place a resource cache behind a simple puzzle that demonstrates a DSA topic. A binary-search puzzle is a candidate: use higher/lower clues to narrow down a hidden value. Start with one puzzle type and add more only if time permits.
-4. **Keep the dungeon purposeful:** Use it as another gathering location, with the puzzle providing a small challenge and making DSA visible in play. The dungeon map and puzzles are planned, not implemented features.
+### World and navigation
 
-The existing queue, stack, and recipe-search modules can support additional gameplay later, but combat, trading, a leaderboard, and multiple endings are not required for this reduced first-pass scope.
+- **Village:** A 48 × 36 collision grid (`CollisionMapLayouts.cs`) rendered over `Content/village_ground.png` and `Content/village_objects.png`. Buildings, props, and the pond block movement; the wizard is the forest travel point.
+- **Forest:** A 36 × 29 collision grid from `forestlayout.cs`, rendered with `Content/forest_ground.png` and `Content/forest_canopy.png`. The canopy is drawn over the player. The dungeon entrance is the three walkable tiles at x=30–32, y=15. The forest exit to the village is at `ForestLayout.Gate` (18, 17).
+- **Dungeon:** A 36 × 28 collision grid (`DungeonCollisionLayout` in `CollisionMapLayouts.cs`) displayed over `Content/dungeon.png`, with a dark screen-space vignette. Its exit returns to the forest entrance.
+- **Movement:** Four-directional tile-locked movement with smooth slides, collision, animation, depth sorting, and camera follow.
+- **Travel:** Stand beside the village wizard and press `E` to request forest travel. Stepping on a map exit or entrance requests travel. Confirm with `Y` or `Enter`; cancel with `N` or `Escape`. Prompts appear at the bottom center of the screen.
+- **Combat:** Press `Space` or `J` to swing. Swings can damage and knock back stationary training enemies near the maps' spawn points. Enemies do not pursue or attack the player.
+- **Debugging:** Press `F3` to toggle hitbox overlays.
+- **Startup checks:** `TileGraph` checks map connectivity; `DsaDemo` runs self-checks for the standalone DSA modules.
 
-## DSA Integration Matrix
+### DSA modules
 
-| Topic | Module | Role in Gameplay |
+| Topic | Module | Current use |
 | :--- | :--- | :--- |
-| **Queue** | `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Existing FIFO module; possible future encounter or event sequence |
-| **Stack** | `ActionHistory.cs`, `PlayerAction.cs` | Existing LIFO module; possible future undo for player actions |
-| **Linked List** | `Inventory.cs`, `Item.cs` | Intended storage for gathered resources |
-| **Binary Search** | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Existing sorted lookup; candidate for a simple search puzzle |
-| **Insertion Sort** | `InsertionSortUtil.cs` | Intended sorting for the inventory display |
-| **Graph / BFS** | `TileGraph.cs` | Map walkability and BFS connectivity validation at startup |
+| Queue | `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Standalone FIFO spawn-sequence module; not wired to live enemy spawning |
+| Stack | `ActionHistory.cs`, `PlayerAction.cs` | Standalone LIFO action-history module; no in-game undo |
+| Linked list | `Inventory.cs`, `Item.cs` | Standalone inventory structure; no resource gathering or inventory HUD |
+| Binary search | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Standalone sorted recipe lookup |
+| Insertion sort | `InsertionSortUtil.cs` | Standalone descending sort utility |
+| Graph / BFS | `TileGraph.cs` | Used for map walkability connectivity checks at startup |
 
-## Current Implementation Status
+## Not Yet Implemented
 
-### Implemented & Fully Playable
-- **Village Map:** 48 × 36 collision grid (`CollisionMapLayouts.cs`) over `Content/villagefinal2.png`, with buildings and the pond blocked.
-- **Sprite Occlusion:** The village ground, transparent object layer, and wizard sprite are rendered separately so buildings and objects draw over the player.
-- **Forest & Dungeon Maps:** PNG backgrounds with editable string-grid collision; the forest cave connects to the dungeon.
-- **Movement & World Navigation:** 4-directional tile-locked movement with smooth pixel slides, directional animations, depth sorting, and camera follow.
-- **Map Travel:** Press `E` beside the village wizard to travel to the forest; confirm with `Y` or cancel with `N`. The forest cave leads to the dungeon.
-- **Startup Diagnostics:** BFS connectivity checks (`TileGraph`) and automated DSA module verification (`DsaDemo`).
-
-### Standalone DSA Modules (To Be Wired to UI)
-- **`Queue`:** Queueing and dequeuing turn/spawn sequence records.
-- **`Stack`:** Recording player actions and performing pop-based undo operations.
-- **`LinkedList`:** Adding, searching, removing, and iterating inventory items.
-- **`BinarySearch`:** Logarithmic lookup over cost-sorted recipe collections.
-- **`InsertionSort`:** In-place descending sort for item value lists.
-
-## Roadmap
-
-- [x] MonoGame foundation, sprite rendering, tile movement, and camera
-- [x] Village, forest, and dungeon maps, collision, validation, and map transitions
-- [x] Standalone DSA modules and startup self-checks
-- [ ] Connect interact key (`Space`/`E`) to resource gathering in the forest and dungeon
-- [ ] Connect `Inventory` linked list to an on-screen HUD string
-- [ ] Use `InsertionSortUtil` to order the displayed inventory
-- [ ] Integrate `BinarySearchUtil` into a player-facing puzzle or lookup
-- [ ] Consider queue/stack integrations only after the gathering, inventory, and puzzle loop works
+- Resource gathering, crafting, and player-facing inventory.
+- Dungeon puzzles or other player-facing binary-search gameplay.
+- Moving or attacking enemies, waves, player health, and boss encounters.
+- Day/night progression, story endings, and high scores.
 
 ## Building and Running
 
@@ -59,4 +41,8 @@ From the project directory:
 
 ```sh
 dotnet restore
+dotnet build
 dotnet run
+```
+
+The game directly loads PNG assets from `Content` with `TitleContainer.OpenStream`; no MonoGame content pipeline build is required. The project file copies content PNGs and the forest TMX file to the output directory.

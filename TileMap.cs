@@ -130,11 +130,15 @@ namespace TileQuest
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
-        public IReadOnlyList<VillageProp> VillageProps { get; }
-        public IReadOnlyList<VillageProp> Props => VillageProps;
+        public IReadOnlyList<VillageProp> VillageProps => _props;
+        public IReadOnlyList<VillageProp> Props => _props;
+        public IReadOnlyDictionary<Point, ResourceType> Pickups => _pickups;
 
         private readonly Dictionary<Point, TileType> _tiles;
         private readonly Dictionary<Point, MapTravel> _travelPoints = new();
+        private readonly List<VillageProp> _props = new();
+        private readonly Dictionary<Point, ResourceNode> _resourceNodes = new();
+        private readonly Dictionary<Point, ResourceType> _pickups = new();
 
         public TileMap(int width, int height, int tileSize)
             : this(width, height, tileSize, WorldMapType.Village)
@@ -154,7 +158,6 @@ namespace TileQuest
                     VillageCollisionLayout.Rows, width, height, nameof(VillageCollisionLayout));
                 SpawnPoint = VillageCollisionLayout.SpawnPoint;
                 VillageStructures = Array.Empty<VillageStructure>();
-                VillageProps = Array.Empty<VillageProp>();
             }
             else if (mapType == WorldMapType.Forest)
             {
@@ -162,7 +165,7 @@ namespace TileQuest
                     width, height, new Random(), out var forestSpawn, out var forestProps);
                 SpawnPoint = forestSpawn;
                 VillageStructures = Array.Empty<VillageStructure>();
-                VillageProps = forestProps;
+                _props.AddRange(forestProps);
                 AddTravelPoint(
                     ForestLayout.Gate,
                     TileType.ForestExit,
@@ -185,13 +188,14 @@ namespace TileQuest
                     DungeonCollisionLayout.Rows, width, height, nameof(DungeonCollisionLayout));
                 SpawnPoint = DungeonCollisionLayout.SpawnPoint;
                 VillageStructures = Array.Empty<VillageStructure>();
-                VillageProps = Array.Empty<VillageProp>();
                 AddTravelPoint(
                     DungeonCollisionLayout.Exit,
                     TileType.DungeonExit,
                     WorldMapType.Forest,
                     ForestLayout.DungeonEntrance);
             }
+
+            PlaceResources();
 
             var graph = new TileGraph(_tiles);
             IsFullyConnected = graph.IsFullyConnected(SpawnPoint, out var unreachableCount);
@@ -208,6 +212,119 @@ namespace TileQuest
         public TileType GetTile(Point gridPos)
         {
             return _tiles.TryGetValue(gridPos, out var tile) ? tile : TileType.Wall;
+        }
+
+        public bool TryHarvestResource(Point tile, out Item item)
+        {
+            return TryHarvestResource(tile, out item, out _);
+        }
+
+        // One swing landing on a resource node: yields one item and takes a hit
+        // off the node. nodeDepleted is true when that was the last hit - the
+        // node is then gone from the map (tile walkable again, prop removed),
+        // so the caller should rebuild its map visuals.
+        public bool TryHarvestResource(Point tile, out Item item, out bool nodeDepleted)
+        {
+            item = null!;
+            nodeDepleted = false;
+            if (!_resourceNodes.TryGetValue(tile, out var node) || node.IsDepleted)
+            {
+                return false;
+            }
+
+            item = node.Hit();
+            if (node.IsDepleted)
+            {
+                nodeDepleted = true;
+                _tiles[tile] = TileType.Grass;
+                _props.Remove(new VillageProp(node.Prop, node.Tile));
+            }
+
+            return true;
+        }
+
+        // Brings every depleted node back (e.g. when a new day starts). A node
+        // whose tile is currently blocked by something else - the player or an
+        // enemy, via isOccupied - stays depleted until next time. Returns true
+        // if anything came back, so the caller can rebuild its map visuals.
+        public bool RestoreResourceNodes(Func<Point, bool>? isOccupied = null)
+        {
+            bool restoredAny = false;
+            foreach (ResourceNode node in _resourceNodes.Values)
+            {
+                if (!node.IsDepleted || (isOccupied?.Invoke(node.Tile) ?? false))
+                {
+                    continue;
+                }
+
+                node.Restore();
+                _tiles[node.Tile] = TileType.Prop;
+                _props.Add(new VillageProp(node.Prop, node.Tile));
+                restoredAny = true;
+            }
+
+            return restoredAny;
+        }
+
+        // Iron and gold on the floor: walking onto the tile collects it.
+        public bool TryCollectPickup(Point tile, out Item item)
+        {
+            item = null!;
+            if (!_pickups.TryGetValue(tile, out var type))
+            {
+                return false;
+            }
+
+            _pickups.Remove(tile);
+            item = ResourceItems.Create(type);
+            return true;
+        }
+
+        private void PlaceResources()
+        {
+            foreach (var spot in ResourceLayout.NodesFor(MapType))
+            {
+                ResourceNode? node = ResourceNode.ForProp(spot.Prop, spot.Tile);
+                if (node == null)
+                {
+                    Console.WriteLine($"[Resources] WARNING — {spot.Prop} at {spot.Tile} is not a harvestable prop; skipped.");
+                    continue;
+                }
+
+                if (!CanPlaceResource(spot.Tile, "node"))
+                {
+                    continue;
+                }
+
+                _tiles[spot.Tile] = TileType.Prop;
+                _props.Add(new VillageProp(spot.Prop, spot.Tile));
+                _resourceNodes.Add(spot.Tile, node);
+            }
+
+            foreach (var spot in ResourceLayout.PickupsFor(MapType))
+            {
+                if (CanPlaceResource(spot.Tile, "pickup"))
+                {
+                    _pickups.Add(spot.Tile, spot.Type);
+                }
+            }
+        }
+
+        private bool CanPlaceResource(Point tile, string what)
+        {
+            bool free = IsWalkable(tile) &&
+                        !_travelPoints.ContainsKey(tile) &&
+                        tile != SpawnPoint &&
+                        !_resourceNodes.ContainsKey(tile) &&
+                        !_pickups.ContainsKey(tile);
+            if (!free)
+            {
+                Console.WriteLine(
+                    $"[Resources] WARNING — {what} at {tile} on the {MapType} map skipped " +
+                    "(blocked, travel tile, arrival point or duplicate).");
+            }
+
+            return free;
         }
 
         // Building, tree and rock anchors are checked against their sprite

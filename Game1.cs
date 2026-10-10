@@ -51,6 +51,7 @@ namespace TileQuest
 
         private TileMap _map = null!;
         private readonly Dictionary<WorldMapType, TileMap> _maps = new();
+        private readonly Inventory _inventory = new();
         private Player _player = null!;
         private Camera2D _camera = null!;
         private MapTravel? _pendingTravel;
@@ -171,7 +172,7 @@ namespace TileQuest
 
             _propSheets[PropSheet.Rocks] = _rocksTexture;
             _propSheets[PropSheet.Vegetation] = _vegetationTexture;
-            foreach (PropSheet sheet in new[] { PropSheet.Tools, PropSheet.Furniture, PropSheet.Farm })
+            foreach (PropSheet sheet in new[] { PropSheet.ObjectRocks, PropSheet.Tools, PropSheet.Furniture, PropSheet.Farm })
             {
                 _propSheets[sheet] = LoadTexture(PropCatalog.FileFor(sheet));
             }
@@ -297,6 +298,21 @@ namespace TileQuest
         // from the player, if that tile is free.
         private void OnPlayerSwingImpact(IReadOnlyList<Point> swingTiles)
         {
+            bool mapChanged = false;
+            foreach (Point swingTile in swingTiles)
+            {
+                if (_map.TryHarvestResource(swingTile, out var harvestedItem, out bool nodeDepleted))
+                {
+                    _inventory.AddItem(harvestedItem);
+                    mapChanged |= nodeDepleted;
+                }
+            }
+
+            if (mapChanged)
+            {
+                PrepareMapVisuals();
+            }
+
             Point push = _player.FacingVector;
             foreach (Enemy enemy in _enemies[_map.MapType])
             {
@@ -308,6 +324,10 @@ namespace TileQuest
                 enemy.TakeDamage(SwingDamage);
                 if (!enemy.IsAlive)
                 {
+                    foreach (var drop in enemy.DropLoot())
+                    {
+                        _inventory.AddItem(drop);
+                    }
                     continue;
                 }
 
@@ -341,6 +361,11 @@ namespace TileQuest
             if (_map.TryGetTravel(position, out var travel))
             {
                 _pendingTravel = travel;
+            }
+
+            if (_map.TryCollectPickup(position, out var pickup))
+            {
+                _inventory.AddItem(pickup);
             }
         }
 
@@ -465,6 +490,7 @@ namespace TileQuest
             else if (_map.MapType == WorldMapType.Dungeon)
             {
                 DrawDungeon();
+                DrawPickups(gameTime);
                 DrawTreesAndPlayer(gameTime);
             }
             else
@@ -507,12 +533,69 @@ namespace TileQuest
                 _spriteBatch.End();
             }
 
+            DrawInventoryHud();
+
             if (_pendingTravel is MapTravel travel)
             {
                 DrawTravelPrompt(travel);
             }
 
             base.Draw(gameTime);
+        }
+
+        private void DrawInventoryHud()
+        {
+            const int scale = 2;
+            const int rowHeight = 18;
+            int x = 16;
+            int y = 12;
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Wood"] = 0,
+                ["Stone"] = 0,
+                ["Iron"] = 0,
+                ["Gold"] = 0,
+            };
+
+            foreach (Item item in _inventory.Items)
+            {
+                if (!counts.ContainsKey(item.Name))
+                {
+                    continue;
+                }
+
+                counts[item.Name] += item.Quantity;
+            }
+
+            string hudText = $"WOOD {counts["Wood"]} STONE {counts["Stone"]} IRON {counts["Iron"]} GOLD {counts["Gold"]}";
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, rowHeight + 18), new Color(10, 14, 18, 180));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, hudText, new Point(x, y), scale, Color.White);
+            _spriteBatch.End();
+        }
+
+        // Iron and gold lying on the floor; walking onto the tile collects
+        // them (see OnPlayerEnteredTile).
+        private void DrawPickups(GameTime gameTime)
+        {
+            float time = (float)gameTime.TotalGameTime.TotalSeconds;
+            foreach (var (tile, type) in _map.Pickups)
+            {
+                bool isGold = type == ResourceType.Gold;
+                float phase = tile.X * 0.7f + tile.Y * 1.3f;
+                int bob = (int)MathF.Round(MathF.Sin(time * 3f + phase) * 2f);
+                int centerX = tile.X * TileSize + TileSize / 2;
+                int baseY = tile.Y * TileSize + TileSize - 8;
+                Rectangle[] variants = isGold ? TileSprites.GoldPickups : TileSprites.IronPickups;
+                Rectangle source = variants[(tile.X + tile.Y) & 3];
+
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(centerX - 7, baseY, 14, 3), Color.Black * 0.35f);
+                _spriteBatch.Draw(
+                    _rocksTexture,
+                    new Rectangle(centerX - 8, baseY - 20 + bob, 16, 16),
+                    source,
+                    Color.White);
+            }
         }
 
         private void DrawForestExitMarkers()
@@ -894,6 +977,13 @@ namespace TileQuest
                 DrawOutlinedBox(
                     new Rectangle(prop.Tile.X * TileSize, prop.Tile.Y * TileSize, TileSize, TileSize),
                     tileColor);
+            }
+
+            foreach (Point pickupTile in _map.Pickups.Keys)
+            {
+                DrawOutlinedBox(
+                    new Rectangle(pickupTile.X * TileSize, pickupTile.Y * TileSize, TileSize, TileSize),
+                    Color.Gold);
             }
 
             // The tiles the player's swing would cover from where they stand.

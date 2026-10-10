@@ -2532,3 +2532,4 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Co
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\npc_sprite.png
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\village_ground.png
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\village_objects.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\Environment\Props\Static\objects.png

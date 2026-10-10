@@ -27,6 +27,7 @@ namespace TileQuest
     public enum PropSheet
     {
         Rocks,
+        ObjectRocks,
         Vegetation,
         Tools,
         Furniture,
@@ -63,21 +64,17 @@ namespace TileQuest
         // looks the same but neighbouring props differ.
         private static readonly Dictionary<PropKind, Definition> Definitions = new()
         {
-            [PropKind.TallBoulder] = new(PropSheet.Rocks, new Rectangle[]
+            [PropKind.TallBoulder] = new(PropSheet.ObjectRocks, new Rectangle[]
             {
-                new(97, 18, 30, 45),
+                TileSprites.HarvestableRock,
             }),
-            [PropKind.RoundBoulder] = new(PropSheet.Rocks, new Rectangle[]
+            [PropKind.RoundBoulder] = new(PropSheet.ObjectRocks, new Rectangle[]
             {
-                new(130, 18, 28, 29),
-                new(160, 16, 16, 16),
-                new(176, 16, 16, 16),
+                TileSprites.HarvestableRock,
             }),
-            [PropKind.BrownBoulder] = new(PropSheet.Rocks, new Rectangle[]
+            [PropKind.BrownBoulder] = new(PropSheet.ObjectRocks, new Rectangle[]
             {
-                new(34, 18, 28, 29),
-                new(64, 16, 16, 16),
-                new(80, 16, 16, 16),
+                TileSprites.HarvestableRock,
             }),
             [PropKind.DeadTree] = new(PropSheet.Vegetation, new Rectangle[]
             {
@@ -121,6 +118,7 @@ namespace TileQuest
             return sheet switch
             {
                 PropSheet.Rocks => "Rocks/Rocks.png",
+                PropSheet.ObjectRocks => "Environment/Props/Static/objects.png",
                 PropSheet.Vegetation => "Vegetation/Vegetation.png",
                 PropSheet.Tools => "Environment/Props/Static/Tools.png",
                 PropSheet.Furniture => "Environment/Props/Static/Furniture.png",

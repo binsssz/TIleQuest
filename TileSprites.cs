@@ -10,7 +10,8 @@ namespace TileQuest
     // Sheets in use:
     //   "Tilesets/All free tiles.png" -> free-form tree crops (Trees below).
     //   "Ground/Tiles/Floors_Tiles.png" -> grass ground + dirt patch textures.
-    //   "Rocks/Rocks.png" -> small pebble clusters (Rocks below).
+    //   "Rocks/Rocks.png" -> small pebble clusters and dungeon ores.
+    //   "Environment/Props/Static/objects.png" -> harvestable boulder.
     //   "Vegetation/Vegetation.png" and "Shadows/Shadows.png" supply decorations.
     //   "Characters/player.png" is loaded as a stand-alone image.
     //   The player's 48x48 animation cells are cut up in Game1.DrawPlayer.
@@ -91,6 +92,9 @@ namespace TileQuest
             new(205, 81, 22, 42),  // short, light
         };
 
+        // Harvestable boulder from "Environment/Props/Static/objects.png".
+        public static readonly Rectangle HarvestableRock = new(48, 80, 48, 48);
+
         // Small pebble clusters on "Rocks/Rocks.png".
         public static readonly Rectangle[] Rocks =
         {
@@ -98,6 +102,23 @@ namespace TileQuest
             new(80, 32, GridSize, GridSize),
             new(64, 48, GridSize, GridSize),
             new(80, 48, GridSize, GridSize),
+        };
+
+        // Small iron and gold nuggets at the lower-right of Rocks/Rocks.png.
+        // Four subtle variants of each are arranged on a 16px-wide spacing.
+        public static readonly Rectangle[] IronPickups =
+        {
+            new(99, 149, 8, 7),
+            new(115, 149, 8, 7),
+            new(131, 149, 8, 7),
+            new(147, 149, 8, 7),
+        };
+        public static readonly Rectangle[] GoldPickups =
+        {
+            new(99, 181, 8, 7),
+            new(115, 181, 8, 7),
+            new(131, 181, 8, 7),
+            new(147, 181, 8, 7),
         };
     }
 }

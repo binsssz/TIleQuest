@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 
 namespace TileQuest
@@ -57,6 +58,34 @@ namespace TileQuest
             if (!IsAlive)
             {
                 _deathRemainingSeconds = DeathFadeSeconds;
+            }
+        }
+
+        public IEnumerable<Item> DropLoot()
+        {
+            if (Health > 0)
+            {
+                yield break;
+            }
+
+            // Fresh rolls on every kill (a position-based seed made the same
+            // tile give the same loot every time).
+            Random random = Random.Shared;
+
+            int goblinEars = random.Next(1, 3);
+            for (int i = 0; i < goblinEars; i++)
+            {
+                yield return new Item("Goblin Ear", "Loot", 1, 4);
+            }
+
+            if (random.NextDouble() < 0.65)
+            {
+                yield return new Item("Bone", "Loot", 1, 3);
+            }
+
+            if (random.NextDouble() < 0.35)
+            {
+                yield return new Item("Gold", "Resource", 1, 8);
             }
         }
 
