@@ -24,6 +24,8 @@ namespace TileQuest
             _tileSize = tileSize;
         }
 
+        public int BaseY => (_tile.Y + 1) * _tileSize;
+
         private static int Hash(Point tile)
         {
             return unchecked(tile.X * 19349663 ^ tile.Y * 73856093);
@@ -47,8 +49,6 @@ namespace TileQuest
             int bottom = (tile.Y + 1) * tileSize;
             return new Rectangle(left, bottom - size, size, size);
         }
-
-        public int BaseY => (_tile.Y + 1) * _tileSize;
 
         public static DrawRock[] CreateFor(TileMap map, Texture2D texture, int tileSize)
         {

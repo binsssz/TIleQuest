@@ -40,6 +40,7 @@ namespace TileQuest
         private Texture2D _dungeonVignetteTexture = null!;
         private Texture2D _healthBarTexture = null!;
         private Texture2D _energyBarTexture = null!;
+        private Texture2D _inventoryIconsTexture = null!;
         private readonly Dictionary<string, Texture2D> _forestSprites = new(StringComparer.Ordinal);
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
@@ -135,20 +136,17 @@ namespace TileQuest
             _enemies[WorldMapType.Village] = new List<Enemy>();
             _enemies[WorldMapType.Forest] = new List<Enemy>();
             _enemies[WorldMapType.Dungeon] = new List<Enemy>();
-            _dungeonChests.Add(new TreasureChest(
-                new Point(4, 20),
-                new[]
-                {
-                    new Item("Gold", "Resource", 2, 8),
-                    new Item("Iron", "Resource", 3, 6),
-                }));
-            _dungeonChests.Add(new TreasureChest(
-                new Point(21, 23),
-                new[]
-                {
-                    new Item("Gold", "Resource", 1, 8),
-                    new Item("Iron", "Resource", 2, 6),
-                }));
+            // Left tile of each 2-wide chest in the dungeon's top room.
+            foreach (Point chestTile in new[] { new Point(4, 3), new Point(7, 3), new Point(20, 3) })
+            {
+                _dungeonChests.Add(new TreasureChest(
+                    chestTile,
+                    new[]
+                    {
+                        new Item("Gold", "Resource", 2, 8),
+                        new Item("Iron", "Resource", 3, 6),
+                    }));
+            }
 
             _camera = new Camera2D(
                 _graphics.PreferredBackBufferWidth,
@@ -198,6 +196,7 @@ namespace TileQuest
             _dungeonTexture = LoadTexture("dungeon.png");
             _healthBarTexture = LoadTexture("UI/bar_red.png");
             _energyBarTexture = LoadTexture("UI/bar_blue.png");
+            _inventoryIconsTexture = LoadTexture("Free_Icons_all_16x16.png");
             foreach (string file in ForestLayout.Sprites.Select(sprite => sprite.File).Distinct(StringComparer.Ordinal))
             {
                 _forestSprites.Add(file, LoadTexture(file));
@@ -268,9 +267,9 @@ namespace TileQuest
                 {
                     float normalizedX = 2f * x / (width - 1) - 1f;
                     float distance = MathF.Sqrt(normalizedX * normalizedX + normalizedY * normalizedY) / maxDistance;
-                    float fade = Math.Clamp((distance - 0.2f) / 0.8f, 0f, 1f);
+                    float fade = Math.Clamp((distance - 0.25f) / 0.75f, 0f, 1f);
                     fade = fade * fade * (3f - 2f * fade);
-                    byte alpha = (byte)(70f + 160f * fade);
+                    byte alpha = (byte)(35f + 120f * fade);
                     pixels[y * width + x] = new Color(0, 0, 0, (int)alpha);
                 }
             }
@@ -633,16 +632,8 @@ namespace TileQuest
                 }
 
                 (string name, int quantity) = stacks[slot];
-                Color itemColor = GetInventoryItemColor(name);
                 var iconBounds = new Rectangle(x + 10, y + 5, 16, 16);
-                _spriteBatch.Draw(_pixelTexture, iconBounds, itemColor);
-                BitmapFont.Draw(
-                    _spriteBatch,
-                    _pixelTexture,
-                    name[..1].ToUpperInvariant(),
-                    new Point(iconBounds.X + 5, iconBounds.Y + 4),
-                    1,
-                    Color.White);
+                DrawInventoryItemIcon(name, iconBounds);
 
                 string quantityText = quantity.ToString();
                 int quantityWidth = quantityText.Length * 6;
@@ -733,7 +724,7 @@ namespace TileQuest
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "CHEST", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, " CHEST", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
 
             for (int slot = 0; slot < 8; slot++)
             {
@@ -751,9 +742,8 @@ namespace TileQuest
                 }
 
                 Item item = chest.Items[slot];
-                Color itemColor = GetInventoryItemColor(item.Name);
                 var icon = new Rectangle(x + (slotWidth - 18) / 2, y + 5, 18, 18);
-                _spriteBatch.Draw(_pixelTexture, icon, itemColor);
+                DrawInventoryItemIcon(item.Name, icon);
                 BitmapFont.Draw(
                     _spriteBatch,
                     _pixelTexture,
@@ -774,7 +764,7 @@ namespace TileQuest
             BitmapFont.Draw(
                 _spriteBatch,
                 _pixelTexture,
-                "WASD NAV   E GET   ESC CLOSE",
+                "WASD TO NAVIGATE | E TO GET ITEM | ESC TO CLOSE",
                 new Point(panelX + 12, panelY + panelHeight - 16),
                 1,
                 Color.Wheat);
@@ -846,6 +836,34 @@ namespace TileQuest
                 "BONE" => new Color(224, 216, 185),
                 _ => new Color(117, 95, 143),
             };
+        }
+
+        private void DrawInventoryItemIcon(string itemName, Rectangle destination)
+        {
+            Rectangle? source = itemName.ToUpperInvariant() switch
+            {
+                "WOOD" => new Rectangle(0, 64, 16, 16),
+                "STONE" or "ROCK" => new Rectangle(144, 0, 16, 16),
+                "IRON" => new Rectangle(0, 32, 16, 16),
+                "GOLD" => new Rectangle(48, 32, 16, 16),
+                "BONE" => new Rectangle(64, 272, 16, 16),
+                _ => null,
+            };
+
+            if (source is Rectangle iconSource)
+            {
+                _spriteBatch.Draw(_inventoryIconsTexture, destination, iconSource, Color.White);
+                return;
+            }
+
+            _spriteBatch.Draw(_pixelTexture, destination, GetInventoryItemColor(itemName));
+            BitmapFont.Draw(
+                _spriteBatch,
+                _pixelTexture,
+                itemName[..1].ToUpperInvariant(),
+                new Point(destination.X + (destination.Width - 6) / 2, destination.Y + (destination.Height - 8) / 2),
+                1,
+                Color.White);
         }
 
         // Iron and gold lying on the floor; walking onto the tile collects

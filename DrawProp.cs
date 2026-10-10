@@ -7,8 +7,8 @@ namespace TileQuest
 {
     // Anything that has to be drawn in front of or behind the player depending
     // on how far down the screen its base is. Game1 keeps one list of these
-    // (trees, props, rocks, and structures together), sorted by BaseY, and
-    // draws actors in the right gap - see Game1.DrawActorsAndObjects.
+    // (trees, rocks, props, and structures together), sorted by BaseY, and
+    // draws the player in the right gap - see Game1.DrawTreesAndPlayer.
     public interface IDepthSorted
     {
         // Y pixel of the bottom of the tile the object stands on.

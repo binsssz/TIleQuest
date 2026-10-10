@@ -10,12 +10,13 @@ namespace TileQuest
         public IReadOnlyList<Point> Tiles { get; }
         public IReadOnlyList<Item> Items => _items;
 
-        public TreasureChest(Point topTile, IEnumerable<Item> items)
+        // Chests are 2 tiles wide and 1 tall, matching the sprites in dungeon.png.
+        public TreasureChest(Point leftTile, IEnumerable<Item> items)
         {
             Tiles = new[]
             {
-                topTile,
-                new Point(topTile.X, topTile.Y + 1),
+                leftTile,
+                new Point(leftTile.X + 1, leftTile.Y),
             };
             _items = new List<Item>(items);
         }

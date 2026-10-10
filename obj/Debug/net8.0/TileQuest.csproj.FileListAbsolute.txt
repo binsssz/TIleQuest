@@ -2537,3 +2537,4 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Co
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\UI\bar_red.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\UI\heart.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\UI\mana.png
+C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Content\Free_Icons_all_16x16.png
