@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace TileQuest
 {
-    public sealed class DrawRock
+    public sealed class DrawRock : IDepthSorted
     {
         private const int SourceTileSize = TileSprites.GridSize;
         private static readonly float[] SizeVariants = { 0.45f, 0.6f, 0.75f };
@@ -48,6 +48,8 @@ namespace TileQuest
             return new Rectangle(left, bottom - size, size, size);
         }
 
+        public int BaseY => (_tile.Y + 1) * _tileSize;
+
         public static DrawRock[] CreateFor(TileMap map, Texture2D texture, int tileSize)
         {
             var rocks = new List<DrawRock>();
@@ -61,7 +63,7 @@ namespace TileQuest
             return rocks.ToArray();
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
         {
             spriteBatch.Draw(_texture, GetBounds(_tile, _tileSize), _source, Color.White);
         }

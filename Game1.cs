@@ -46,8 +46,7 @@ namespace TileQuest
         private readonly Dictionary<PropSheet, Texture2D> _propSheets = new();
         private Texture2D _wellTexture = null!;
         private DrawProp[] _props = Array.Empty<DrawProp>();
-        // Trees, props, and structures together, back-to-front, so the player can walk
-        // between them (see DrawTreesAndPlayer).
+        // Depth-aware scenery, sorted back-to-front so actors can pass behind it.
         private IDepthSorted[] _depthSorted = Array.Empty<IDepthSorted>();
         private bool _showHitboxes; // F3 debug overlay, see DrawHitboxes
 
@@ -62,13 +61,30 @@ namespace TileQuest
         // Combat. Enemies are kept per map so each map's mobs stay where the
         // player left them. Attack with Space or J.
         private readonly Dictionary<WorldMapType, List<Enemy>> _enemies = new();
+        private readonly List<TreasureChest> _dungeonChests = new();
+        private TreasureChest? _openChest;
+        private int _chestSelection;
         private Texture2D _enemyTexture = null!;
+        private Texture2D _enemyHandsTexture = null!;
         private const int SwingDamage = 5;
         private const int EnemyMaxHealth = 20;
         private const int EnemyCellSize = 32;       // Idle-Sheet.png: 4 frames of 32x32 in one row
         private const int EnemyFrameCount = 4;
         private const float EnemyFramesPerSecond = 6f;
         private const int EnemySpriteHeight = 28;   // head-to-feet in source pixels, scaled to one tile
+
+        // The goblin sprite has no arms, so its hands are separate sprites drawn
+        // on top. Hands.png is 2 columns (left hand, right hand) of 16x16 cells;
+        // rows 4 and 5 are the green goblin hands (try 5 for the other pose).
+        private const int HandCellSize = 16;
+        private const int GoblinHandRow = 4;
+        // Where each hand's centre sits in the 32x32 idle frame, in source pixels
+        // (x to the right, y down). Nudge these two to move the hands.
+        private static readonly Point GoblinBackHandCenter = new(7, 19);
+        private static readonly Point GoblinFrontHandCenter = new(22, 19);
+        // The upper body bobs between idle frames (the legs stay put), so the
+        // hands move down with it. One entry per idle frame.
+        private static readonly int[] GoblinBodyBobY = { 0, 2, 2, 1 };
         private const int MaxTrainingEnemiesPerMap = 4;
         private static readonly Point[] TrainingEnemyOffsets =
         {
@@ -119,6 +135,20 @@ namespace TileQuest
             _enemies[WorldMapType.Village] = new List<Enemy>();
             _enemies[WorldMapType.Forest] = new List<Enemy>();
             _enemies[WorldMapType.Dungeon] = new List<Enemy>();
+            _dungeonChests.Add(new TreasureChest(
+                new Point(4, 20),
+                new[]
+                {
+                    new Item("Gold", "Resource", 2, 8),
+                    new Item("Iron", "Resource", 3, 6),
+                }));
+            _dungeonChests.Add(new TreasureChest(
+                new Point(21, 23),
+                new[]
+                {
+                    new Item("Gold", "Resource", 1, 8),
+                    new Item("Iron", "Resource", 2, 6),
+                }));
 
             _camera = new Camera2D(
                 _graphics.PreferredBackBufferWidth,
@@ -159,6 +189,7 @@ namespace TileQuest
             _playerTexture = LoadTexture("Characters/player.png");
             _wizardTexture = LoadTexture("npc_sprite.png");
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
+            _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
             _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
@@ -253,7 +284,10 @@ namespace TileQuest
             _trees = DrawTree.CreateForest(_map, _treeTextures, TileSize);
             _rocks = DrawRock.CreateFor(_map, _rocksTexture, TileSize);
             _props = DrawProp.CreateFor(_map, _propSheets, TileSize);
-            IEnumerable<IDepthSorted> depthSorted = _trees.Cast<IDepthSorted>().Concat(_props);
+            IEnumerable<IDepthSorted> depthSorted = _trees
+                .Cast<IDepthSorted>()
+                .Concat(_props)
+                .Concat(_rocks);
             if (_map.MapType == WorldMapType.Village)
             {
                 depthSorted = depthSorted.Concat(
@@ -442,6 +476,10 @@ namespace TileQuest
                     _pendingTravel = null;
                 }
             }
+            else if (_openChest != null)
+            {
+                UpdateChestMenu(keyboard);
+            }
             else if (WasPressed(keyboard, Keys.Escape))
             {
                 Exit();
@@ -449,7 +487,9 @@ namespace TileQuest
             else
             {
                 bool attackPressed = WasPressed(keyboard, Keys.Space) || WasPressed(keyboard, Keys.J);
-                if (_map.MapType == WorldMapType.Village &&
+                bool interacted = WasPressed(keyboard, Keys.E) && TryOpenNearbyChest();
+                if (!interacted &&
+                    _map.MapType == WorldMapType.Village &&
                     WasPressed(keyboard, Keys.E) &&
                     IsPlayerBesideWizard())
                 {
@@ -458,8 +498,11 @@ namespace TileQuest
                         _maps[WorldMapType.Forest].SpawnPoint);
                 }
 
-                _player.Update(gameTime, _map, keyboard, attackPressed, IsEnemyAt);
-                UpdateEnemies(gameTime);
+                if (!interacted)
+                {
+                    _player.Update(gameTime, _map, keyboard, attackPressed, IsEnemyAt);
+                    UpdateEnemies(gameTime);
+                }
             }
 
             _camera.Update(gameTime, _player.PixelPosition, followSpeed: 8f);
@@ -477,26 +520,14 @@ namespace TileQuest
             if (_map.MapType == WorldMapType.Village)
             {
                 DrawVillageGround();
-                DrawVillageObjectsBehindPlayer();
-                bool wizardBehindPlayer =
-                    (VillageCollisionLayout.WizardPosition.Y + 1) * TileSize <=
-                    _player.PixelPosition.Y + TileSize;
-                if (wizardBehindPlayer)
-                {
-                    DrawWizard();
-                }
-                DrawPlayer();
-                if (!wizardBehindPlayer)
-                {
-                    DrawWizard();
-                }
-                DrawVillageObjectsInFrontOfPlayer();
+                DrawVillageActors();
+                DrawVillageObjectSlice(0, _villageObjectsTexture.Height);
             }
             else if (_map.MapType == WorldMapType.Dungeon)
             {
                 DrawDungeon();
                 DrawPickups(gameTime);
-                DrawTreesAndPlayer(gameTime);
+                DrawActors(gameTime);
             }
             else
             {
@@ -513,8 +544,8 @@ namespace TileQuest
                 DrawGroundDetails();
                 DrawVillagePlants();
                 DrawTreeShadows();
-                DrawRocks();
-                DrawTreesAndPlayer(gameTime);
+                DrawActors(gameTime);
+                DrawDepthSortedObjects(gameTime);
                 if (_map.MapType == WorldMapType.Forest && !ForestLayout.UseGeneratedVisuals)
                 {
                     DrawForestSpriteLayer(ForestLayout.SpriteLayer.OverPlayer);
@@ -539,6 +570,11 @@ namespace TileQuest
             }
 
             DrawInventoryHud();
+
+            if (_openChest != null)
+            {
+                DrawChestPopup(_openChest);
+            }
 
             if (_pendingTravel is MapTravel travel)
             {
@@ -619,6 +655,129 @@ namespace TileQuest
                     Color.White);
             }
 
+            _spriteBatch.End();
+        }
+
+        private bool TryOpenNearbyChest()
+        {
+            if (_map.MapType != WorldMapType.Dungeon)
+            {
+                return false;
+            }
+
+            Point playerTile = _player.GridPosition;
+            _openChest = _dungeonChests
+                .Select(chest => new
+                {
+                    Chest = chest,
+                    Distance = chest.Tiles.Min(tile =>
+                        Math.Abs(tile.X - playerTile.X) +
+                        Math.Abs(tile.Y - playerTile.Y)),
+                })
+                .Where(entry => entry.Distance <= 1)
+                .OrderBy(entry => entry.Distance)
+                .Select(entry => entry.Chest)
+                .FirstOrDefault();
+
+            if (_openChest == null)
+            {
+                return false;
+            }
+
+            _chestSelection = 0;
+            return true;
+        }
+
+        private void UpdateChestMenu(KeyboardState keyboard)
+        {
+            if (WasPressed(keyboard, Keys.Escape))
+            {
+                _openChest = null;
+            }
+            else if (WasPressed(keyboard, Keys.E))
+            {
+                Item? item = _openChest!.TakeItem(_chestSelection);
+                if (item != null)
+                {
+                    _inventory.AddItem(item);
+                }
+            }
+            else if (WasPressed(keyboard, Keys.A))
+            {
+                _chestSelection = (_chestSelection + 7) % 8;
+            }
+            else if (WasPressed(keyboard, Keys.D))
+            {
+                _chestSelection = (_chestSelection + 1) % 8;
+            }
+            else if (WasPressed(keyboard, Keys.W))
+            {
+                _chestSelection = (_chestSelection + 4) % 8;
+            }
+            else if (WasPressed(keyboard, Keys.S))
+            {
+                _chestSelection = (_chestSelection + 4) % 8;
+            }
+        }
+
+        private void DrawChestPopup(TreasureChest chest)
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            const int slotWidth = 72;
+            const int slotHeight = 60;
+            const int slotGap = 6;
+            const int panelWidth = 332;
+            const int panelHeight = 202;
+            int panelX = (viewport.Width - panelWidth) / 2;
+            int panelY = (viewport.Height - panelHeight) / 2;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "CHEST", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
+
+            for (int slot = 0; slot < 8; slot++)
+            {
+                int column = slot % 4;
+                int row = slot / 4;
+                int x = panelX + 12 + column * (slotWidth + slotGap);
+                int y = panelY + 34 + row * (slotHeight + slotGap);
+                var bounds = new Rectangle(x, y, slotWidth, slotHeight);
+                _spriteBatch.Draw(_pixelTexture, bounds, new Color(32, 25, 20, 245));
+                DrawHudBorder(bounds, slot == _chestSelection ? Color.Gold : new Color(156, 119, 69));
+
+                if (slot >= chest.Items.Count)
+                {
+                    continue;
+                }
+
+                Item item = chest.Items[slot];
+                Color itemColor = GetInventoryItemColor(item.Name);
+                var icon = new Rectangle(x + (slotWidth - 18) / 2, y + 5, 18, 18);
+                _spriteBatch.Draw(_pixelTexture, icon, itemColor);
+                BitmapFont.Draw(
+                    _spriteBatch,
+                    _pixelTexture,
+                    item.Name.Length > 10 ? item.Name[..10].ToUpperInvariant() : item.Name.ToUpperInvariant(),
+                    new Point(x + 5, y + 30),
+                    1,
+                    Color.White);
+                string quantity = item.Quantity.ToString();
+                BitmapFont.Draw(
+                    _spriteBatch,
+                    _pixelTexture,
+                    quantity,
+                    new Point(x + slotWidth - quantity.Length * 6 - 5, y + slotHeight - 10),
+                    1,
+                    Color.Wheat);
+            }
+
+            BitmapFont.Draw(
+                _spriteBatch,
+                _pixelTexture,
+                "WASD NAV   E GET   ESC CLOSE",
+                new Point(panelX + 12, panelY + panelHeight - 16),
+                1,
+                Color.Wheat);
             _spriteBatch.End();
         }
 
@@ -787,47 +946,47 @@ namespace TileQuest
                 Color.White);
         }
 
-        private int GetVillageObjectSplitY()
+        private void DrawVillageObjectSlice(int startY, int endY)
         {
-            float scale = TileSize / 16f;
-            return Math.Clamp(
-                (int)MathF.Floor((_player.PixelPosition.Y + TileSize) / scale),
-                0,
-                _villageObjectsTexture.Height);
-        }
-
-        private void DrawVillageObjectsBehindPlayer()
-        {
-            int splitY = GetVillageObjectSplitY();
-            if (splitY == 0)
+            if (startY >= endY)
             {
                 return;
             }
 
-            var source = new Rectangle(0, 0, _villageObjectsTexture.Width, splitY);
-            var destination = new Rectangle(0, 0, _map.Width * TileSize, splitY * 2);
-            _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
-        }
-
-        private void DrawVillageObjectsInFrontOfPlayer()
-        {
-            int splitY = GetVillageObjectSplitY();
-            if (splitY == _villageObjectsTexture.Height)
-            {
-                return;
-            }
-
-            var source = new Rectangle(
-                0,
-                splitY,
-                _villageObjectsTexture.Width,
-                _villageObjectsTexture.Height - splitY);
+            const float scale = TileSize / 16f;
+            var source = new Rectangle(0, startY, _villageObjectsTexture.Width, endY - startY);
             var destination = new Rectangle(
                 0,
-                splitY * 2,
+                (int)(startY * scale),
                 _map.Width * TileSize,
-                (_villageObjectsTexture.Height - splitY) * 2);
+                (int)((endY - startY) * scale));
             _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
+        }
+
+        private void DrawVillageActors()
+        {
+            var actors = new List<(int BaseY, Action Draw)>();
+
+            foreach (Enemy enemy in _enemies[_map.MapType])
+            {
+                actors.Add(((int)enemy.PixelPosition.Y + TileSize, () => DrawEnemy(enemy)));
+            }
+
+            Point wizardPosition = VillageCollisionLayout.WizardPosition;
+            actors.Add(((wizardPosition.Y + 1) * TileSize, DrawWizard));
+            actors.Add(((int)_player.PixelPosition.Y + TileSize, () =>
+            {
+                DrawPlayerSprite();
+                if (_player.IsAttacking)
+                {
+                    DrawSwingEffect();
+                }
+            }));
+
+            foreach (var actor in actors.OrderBy(actor => actor.BaseY))
+            {
+                actor.Draw();
+            }
         }
 
         private void DrawTiles()
@@ -1156,14 +1315,6 @@ namespace TileQuest
             }
         }
 
-        private void DrawRocks()
-        {
-            foreach (var rock in _rocks)
-            {
-                rock.Draw(_spriteBatch);
-            }
-        }
-
         private void DrawVillageStructure(VillageStructure structure, SpriteBatch spriteBatch, GameTime gameTime)
         {
             if (structure.Type == TileType.VillageHearth)
@@ -1221,27 +1372,34 @@ namespace TileQuest
             spriteBatch.Draw(_bonfireFlameTexture, flameDestination, flameSource, Color.White);
         }
 
-        // Depth sorting: trees are sorted top-to-bottom, so draw the ones whose
-        // base is at or above the player's feet first, then the player, then
-        // the trees lower on the screen. That way the player walks in front of
-        // a tree when south of it and behind it (hidden by the canopy) when
-        // north of it.
-        private void DrawTreesAndPlayer(GameTime gameTime)
+        private void DrawActors(GameTime gameTime)
         {
-            int playerFootY = (int)_player.PixelPosition.Y + TileSize;
-
-            int i = 0;
-            while (i < _depthSorted.Length && _depthSorted[i].BaseY <= playerFootY)
+            var actors = new List<(int BaseY, Action Draw)>(_enemies[_map.MapType].Count + 1);
+            foreach (Enemy enemy in _enemies[_map.MapType])
             {
-                _depthSorted[i].Draw(_spriteBatch, gameTime);
-                i++;
+                actors.Add(((int)enemy.PixelPosition.Y + TileSize, () => DrawEnemy(enemy)));
             }
 
-            DrawPlayer();
-
-            for (; i < _depthSorted.Length; i++)
+            actors.Add(((int)_player.PixelPosition.Y + TileSize, () =>
             {
-                _depthSorted[i].Draw(_spriteBatch, gameTime);
+                DrawPlayerSprite();
+                if (_player.IsAttacking)
+                {
+                    DrawSwingEffect();
+                }
+            }));
+
+            foreach (var actor in actors.OrderBy(actor => actor.BaseY))
+            {
+                actor.Draw();
+            }
+        }
+
+        private void DrawDepthSortedObjects(GameTime gameTime)
+        {
+            foreach (IDepthSorted item in _depthSorted)
+            {
+                item.Draw(_spriteBatch, gameTime);
             }
         }
 
@@ -1296,32 +1454,15 @@ namespace TileQuest
             }
         }
 
-        // Draws the player together with the enemies and the swing effect, so
-        // enemies north of the player's feet go behind the player and the rest
-        // in front. (Enemies are not depth sorted against trees/structures.)
-        private void DrawPlayer()
+        // Draws one hand cell so its centre lands on `center` (source pixels in the
+        // body frame), using the same scale and tint as the body.
+        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint)
         {
-            float playerFootY = _player.PixelPosition.Y + TileSize;
-            List<Enemy> enemies = _enemies[_map.MapType];
-
-            foreach (Enemy enemy in enemies.Where(e => e.PixelPosition.Y + TileSize <= playerFootY)
-                                           .OrderBy(e => e.PixelPosition.Y))
-            {
-                DrawEnemy(enemy);
-            }
-
-            DrawPlayerSprite();
-
-            foreach (Enemy enemy in enemies.Where(e => e.PixelPosition.Y + TileSize > playerFootY)
-                                           .OrderBy(e => e.PixelPosition.Y))
-            {
-                DrawEnemy(enemy);
-            }
-
-            if (_player.IsAttacking)
-            {
-                DrawSwingEffect();
-            }
+            var source = new Rectangle(column * HandCellSize, GoblinHandRow * HandCellSize, HandCellSize, HandCellSize);
+            int handX = bodyX + (int)Math.Round((center.X - HandCellSize / 2) * scale);
+            int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + GoblinBodyBobY[frame]) * scale);
+            int handSize = (int)Math.Round(HandCellSize * scale);
+            _spriteBatch.Draw(_enemyHandsTexture, new Rectangle(handX, handY, handSize, handSize), source, tint);
         }
 
         private void DrawEnemy(Enemy enemy)
@@ -1336,7 +1477,12 @@ namespace TileQuest
 
             Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
             tint *= enemy.DeathFade;
+
+            // The back hand is drawn first so the body covers part of it; the
+            // front hand goes on top.
+            DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint);
             _spriteBatch.Draw(_enemyTexture, new Rectangle(x, y, size, size), source, tint);
+            DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint);
 
             if (enemy.IsAlive && enemy.Health < enemy.MaxHealth)
             {
