@@ -38,6 +38,8 @@ namespace TileQuest
         private Texture2D _forestTerrainTexture = null!;
         private Texture2D _dungeonTexture = null!;
         private Texture2D _dungeonVignetteTexture = null!;
+        private Texture2D _healthBarTexture = null!;
+        private Texture2D _energyBarTexture = null!;
         private readonly Dictionary<string, Texture2D> _forestSprites = new(StringComparer.Ordinal);
         private DrawTree[] _trees = Array.Empty<DrawTree>();
         private DrawRock[] _rocks = Array.Empty<DrawRock>();
@@ -70,7 +72,7 @@ namespace TileQuest
         private const int MaxTrainingEnemiesPerMap = 4;
         private static readonly Point[] TrainingEnemyOffsets =
         {
-            new(3, 0), new(4, 2), new(5, -2), new(-4, 1), new(-3, -3), new(6, 1), new(2, 4), new(-5, -1),
+            new(2, 0), new(3, 2), new(5, -1), new(-4, 1), new(-3, -1), new(6, 1), new(2, 1), new(-5, -1),
         };
 
         // player.png is a grid of 48x48 cells, 6 frames per row. Rows 0-5 are
@@ -88,6 +90,7 @@ namespace TileQuest
         private const int BonfireFlameFrameHeight = 48;
         private const int LampHeightTiles = 4;
         private static readonly Rectangle LampSource = new(45, 17, 40, 94);
+        private static readonly Rectangle BarFillSource = new(4, 2, 3, 6);
 
         // Same 32x32 crop of every cell, so the character doesn't jitter
         // between frames. The bottom edge is where the feet/shadow sit.
@@ -162,6 +165,8 @@ namespace TileQuest
             _lampTexture = LoadTexture("Icons/Lamp.png");
             _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
             _dungeonTexture = LoadTexture("dungeon.png");
+            _healthBarTexture = LoadTexture("UI/bar_red.png");
+            _energyBarTexture = LoadTexture("UI/bar_blue.png");
             foreach (string file in ForestLayout.Sprites.Select(sprite => sprite.File).Distinct(StringComparer.Ordinal))
             {
                 _forestSprites.Add(file, LoadTexture(file));
@@ -545,33 +550,143 @@ namespace TileQuest
 
         private void DrawInventoryHud()
         {
-            const int scale = 2;
-            const int rowHeight = 18;
-            int x = 16;
-            int y = 12;
-            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["Wood"] = 0,
-                ["Stone"] = 0,
-                ["Iron"] = 0,
-                ["Gold"] = 0,
-            };
+            var itemIndexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var stacks = new List<(string Name, int Quantity)>();
 
             foreach (Item item in _inventory.Items)
             {
-                if (!counts.ContainsKey(item.Name))
+                if (itemIndexes.TryGetValue(item.Name, out int index))
+                {
+                    (string name, int quantity) = stacks[index];
+                    stacks[index] = (name, quantity + item.Quantity);
+                }
+                else
+                {
+                    itemIndexes.Add(item.Name, stacks.Count);
+                    stacks.Add((item.Name, item.Quantity));
+                }
+            }
+
+            Viewport viewport = GraphicsDevice.Viewport;
+            DrawPlayerStatsHud(viewport);
+
+            const int slotSize = 36;
+            const int slotGap = 4;
+            const int panelWidth = 172;
+            const int panelHeight = 116;
+            int panelX = viewport.Width - panelWidth - 14;
+            int panelY = viewport.Height - panelHeight - 14;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "INVENTORY", new Point(panelX + 8, panelY + 8), 2, Color.Wheat);
+
+            for (int slot = 0; slot < 8; slot++)
+            {
+                int column = slot % 4;
+                int row = slot / 4;
+                int x = panelX + 8 + column * (slotSize + slotGap);
+                int y = panelY + 28 + row * (slotSize + slotGap);
+                var slotBounds = new Rectangle(x, y, slotSize, slotSize);
+                _spriteBatch.Draw(_pixelTexture, slotBounds, new Color(32, 25, 20, 235));
+                DrawHudBorder(slotBounds, new Color(156, 119, 69));
+
+                if (slot >= stacks.Count)
                 {
                     continue;
                 }
 
-                counts[item.Name] += item.Quantity;
+                (string name, int quantity) = stacks[slot];
+                Color itemColor = GetInventoryItemColor(name);
+                var iconBounds = new Rectangle(x + 10, y + 5, 16, 16);
+                _spriteBatch.Draw(_pixelTexture, iconBounds, itemColor);
+                BitmapFont.Draw(
+                    _spriteBatch,
+                    _pixelTexture,
+                    name[..1].ToUpperInvariant(),
+                    new Point(iconBounds.X + 5, iconBounds.Y + 4),
+                    1,
+                    Color.White);
+
+                string quantityText = quantity.ToString();
+                int quantityWidth = quantityText.Length * 6;
+                BitmapFont.Draw(
+                    _spriteBatch,
+                    _pixelTexture,
+                    quantityText,
+                    new Point(x + slotSize - quantityWidth - 3, y + slotSize - 10),
+                    1,
+                    Color.White);
             }
 
-            string hudText = $"WOOD {counts["Wood"]} STONE {counts["Stone"]} IRON {counts["Iron"]} GOLD {counts["Gold"]}";
-            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            _spriteBatch.Draw(_pixelTexture, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, rowHeight + 18), new Color(10, 14, 18, 180));
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, hudText, new Point(x, y), scale, Color.White);
             _spriteBatch.End();
+        }
+
+        private void DrawPlayerStatsHud(Viewport viewport)
+        {
+            const int panelWidth = 198;
+            const int panelHeight = 126;
+            int x = 16;
+            int y = viewport.Height - panelHeight - 14;
+            var panel = new Rectangle(x, y, panelWidth, panelHeight);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(panel);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "HEALTH", new Point(x + 12, y + 7), 2, Color.Wheat);
+            var healthMeter = new Rectangle(x + 12, y + 23, 174, 32);
+            _spriteBatch.Draw(_pixelTexture, healthMeter, new Color(45, 28, 24));
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(healthMeter.X + 4, healthMeter.Y + 4, healthMeter.Width - 8, healthMeter.Height - 8),
+                new Color(20, 16, 17));
+            _spriteBatch.Draw(
+                _healthBarTexture,
+                new Rectangle(healthMeter.X + 4, healthMeter.Y + 4, healthMeter.Width - 8, healthMeter.Height - 8),
+                BarFillSource,
+                Color.White);
+            DrawHudBorder(healthMeter, new Color(156, 119, 69));
+
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "ENERGY", new Point(x + 12, y + 66), 2, Color.Wheat);
+            var energyMeter = new Rectangle(x + 12, y + 82, 174, 32);
+            _spriteBatch.Draw(_pixelTexture, energyMeter, new Color(28, 32, 43));
+            _spriteBatch.Draw(
+                _pixelTexture,
+                new Rectangle(energyMeter.X + 4, energyMeter.Y + 4, energyMeter.Width - 8, energyMeter.Height - 8),
+                new Color(16, 19, 26));
+            _spriteBatch.Draw(
+                _energyBarTexture,
+                new Rectangle(energyMeter.X + 4, energyMeter.Y + 4, energyMeter.Width - 8, energyMeter.Height - 8),
+                BarFillSource,
+                Color.White);
+            DrawHudBorder(energyMeter, new Color(156, 119, 69));
+            _spriteBatch.End();
+        }
+
+        private void DrawHudPanel(Rectangle bounds)
+        {
+            _spriteBatch.Draw(_pixelTexture, bounds, new Color(18, 15, 14, 225));
+            DrawHudBorder(bounds, new Color(195, 154, 91));
+        }
+
+        private void DrawHudBorder(Rectangle bounds, Color color)
+        {
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(bounds.X, bounds.Y, bounds.Width, 2), color);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(bounds.X, bounds.Bottom - 2, bounds.Width, 2), color);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(bounds.X, bounds.Y, 2, bounds.Height), color);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(bounds.Right - 2, bounds.Y, 2, bounds.Height), color);
+        }
+
+        private static Color GetInventoryItemColor(string itemName)
+        {
+            return itemName.ToUpperInvariant() switch
+            {
+                "WOOD" => new Color(139, 91, 48),
+                "STONE" => new Color(133, 137, 137),
+                "IRON" => new Color(185, 190, 192),
+                "GOLD" => new Color(229, 183, 49),
+                "BONE" => new Color(224, 216, 185),
+                _ => new Color(117, 95, 143),
+            };
         }
 
         // Iron and gold lying on the floor; walking onto the tile collects

@@ -92,8 +92,8 @@ namespace TileQuest
             new(205, 81, 22, 42),  // short, light
         };
 
-        // Harvestable boulder from "Environment/Props/Static/objects.png".
-        public static readonly Rectangle HarvestableRock = new(48, 80, 48, 48);
+        // Small blue-gray rock at the upper-left of "objects.png".
+        public static readonly Rectangle HarvestableRock = new(0, 16, 16, 16);
 
         // Small pebble clusters on "Rocks/Rocks.png".
         public static readonly Rectangle[] Rocks =

@@ -72,12 +72,6 @@ namespace TileQuest
             // tile give the same loot every time).
             Random random = Random.Shared;
 
-            int goblinEars = random.Next(1, 3);
-            for (int i = 0; i < goblinEars; i++)
-            {
-                yield return new Item("Goblin Ear", "Loot", 1, 4);
-            }
-
             if (random.NextDouble() < 0.65)
             {
                 yield return new Item("Bone", "Loot", 1, 3);

@@ -18,9 +18,10 @@
 - Travel from the village is requested with `E` while next to the wizard. Stepping on a travel tile requests the corresponding map transition. Confirm with `Y` or `Enter`; cancel with `N` or `Escape`. Prompts are drawn at the bottom center.
 - Movement is four-directional, grid-locked, smoothly interpolated, and collision checked. The camera follows the player.
 - `Space` or `J` performs a melee swing. Training enemies are stationary targets around map spawn points; they can be damaged, knocked back, and defeated, but do not pursue or attack.
+- A screen-space HUD shows red health and blue energy bars at the lower left and a 4 × 2, Minecraft-style inventory grid at the lower right. The bars are currently visual-only; player health and energy mechanics are not implemented.
 - `F3` toggles the hitbox/debug overlay.
 - Startup runs `TileGraph` connectivity checks and `DsaDemo` self-checks.
-- Queue, stack, linked-list inventory, binary-search, and insertion-sort code exists as standalone DSA modules; gathering, an inventory HUD, undo, crafting, and a player-facing puzzle are not implemented.
+- Queue, stack, linked-list inventory, binary-search, and insertion-sort code exists as standalone DSA modules; undo, crafting, and a player-facing puzzle are not implemented.
 
 Do not describe enemy AI/waves, resource gathering, player health, dungeon puzzles, day/night progression, bosses, endings, or high scores as shipped unless later code changes implement them.
 
@@ -83,9 +84,9 @@ This roadmap outlines the step-by-step implementation plan for the remaining 4-d
 * **DSA Module:** Singly Linked List (`Inventory.cs` storing `Item` nodes).
 * **Implementation Steps:**
   1. Implement `TryHarvestResource(Point tile, out Item item)` inside `TileMap.cs` to clear trees/rocks/ores and return harvested drops.
-  2. Implement `DropLoot()` inside `Enemy.cs` to yield specific drops (e.g., Goblin Ears, Bones, Gold Ore) when an enemy's HP reaches 0.
+  2. Implement `DropLoot()` inside `Enemy.cs` to yield specific drops (e.g., Bones and Gold) when an enemy's HP reaches 0.
   3. Update `Game1.cs` attack evaluation loop so `_player.GetSwingTiles()` invokes resource harvesting and enemy damage simultaneously, appending dropped items into `_inventory.AddItem()`.
-  4. Render a top-screen HUD using `BitmapFont.Draw()` in `Game1.Draw()` to display real-time inventory counts (Wood, Stone, Iron, Gold).
+  4. Render a bottom-right, Minecraft-style inventory grid in `Game1.Draw()` and show player health and energy bars at the bottom left.
 * **Verification:** Swinging at trees, rocks, chests, or sample enemies updates item quantities on the screen HUD.
 
 ---
