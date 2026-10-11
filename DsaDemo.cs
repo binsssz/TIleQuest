@@ -21,6 +21,7 @@ namespace TileQuest
             Console.WriteLine("=== DSA module self-check ===");
             DemoQueue();
             DemoStack();
+            DemoCraftingUndo();
             DemoLinkedList();
             DemoBinarySearch();
             DemoInsertionSort();
@@ -102,6 +103,54 @@ namespace TileQuest
             Check("new day clears history", !history.CanUndo && history.Undo() == null);
         }
 
+        // Trader crafting + undo: materials come out of the linked-list
+        // inventory, the transaction goes on the stack, and U pops it again.
+        private static void DemoCraftingUndo()
+        {
+            Console.WriteLine("Crafting + Undo (Inventory, RecipeBook, ActionHistory)");
+            var inventory = new Inventory();
+            var history = new ActionHistory();
+            var club = RecipeBook.FindByName("Wooden Sword")!;
+            var mace = RecipeBook.FindByName("Stone Sword")!;
+
+            // Wood arrives as two separate pickups, like it does in the game.
+            inventory.AddItem(new Item("Wood", "Resource", 3, 2));
+            inventory.AddItem(new Item("Wood", "Resource", 2, 2));
+            inventory.AddItem(new Item("Stone", "Resource", 3, 3));
+            Check("CountOf totals wood across separate pickups (5)", inventory.CountOf("Wood") == 5);
+            var discardInventory = new Inventory();
+            discardInventory.AddItem(new Item("Wood", "Resource", 3, 2));
+            Check("discarding one wood leaves the rest of the stack",
+                discardInventory.RemoveOne("Wood", "Resource") && discardInventory.CountOf("Wood") == 2);
+            Check("discarding from the wrong category changes nothing",
+                !discardInventory.RemoveOne("Wood", "Loot") && discardInventory.CountOf("Wood") == 2);
+
+            Check("Wooden Sword (4 wood) crafts", Crafting.TryCraft(inventory, history, club));
+            Check("4 wood spent, 1 left", inventory.CountOf("Wood") == 1);
+            Check("wooden sword is equipped", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
+
+            Check("Stone Sword fails with only 1 wood", !Crafting.TryCraft(inventory, history, mace));
+            Check("a failed craft changes nothing", inventory.CountOf("Wood") == 1 &&
+                inventory.CountOf("Stone") == 3 && history.Count == 1);
+
+            inventory.AddItem(new Item("Wood", "Resource", 1, 2));
+            Check("Stone Sword crafts once the wood is there", Crafting.TryCraft(inventory, history, mace));
+            Check("stone sword (stronger) is now equipped", Crafting.GetBestWeapon(inventory)?.Name == "Stone Sword");
+            Check("materials spent (0 wood, 0 stone)", inventory.CountOf("Wood") == 0 && inventory.CountOf("Stone") == 0);
+
+            var undone = Crafting.UndoLast(inventory, history);
+            Check("first undo reverses the LAST craft (Stone Sword)", undone?.Description == "Stone Sword");
+            Check("stone sword removed and materials refunded", inventory.Find("Stone Sword") == null &&
+                inventory.CountOf("Wood") == 2 && inventory.CountOf("Stone") == 3);
+            Check("equipment falls back to the wooden sword", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
+
+            Check("second undo reverses the wooden sword", Crafting.UndoLast(inventory, history)?.Description == "Wooden Sword");
+            Check("wooden sword removed, all 6 wood back", inventory.Find("Wooden Sword") == null && inventory.CountOf("Wood") == 6);
+            Check("nothing left to undo", Crafting.UndoLast(inventory, history) == null);
+
+            Check("RemoveQuantity refuses to overspend", !inventory.RemoveQuantity("Wood", 99) && inventory.CountOf("Wood") == 6);
+        }
+
         // LinkedList: add, remove from the middle, then read back.
         private static void DemoLinkedList()
         {
@@ -138,16 +187,29 @@ namespace TileQuest
             }
             Check("RecipeBook is sorted ascending by cost", sorted);
 
-            Check("cost 35 found at index 3 (Reinforced Gate)",
-                BinarySearchUtil.FindByKey(recipes, 35, r => r.Cost) == 3);
-            Check("first element found (cost 5 -> index 0)",
-                BinarySearchUtil.FindByKey(recipes, 5, r => r.Cost) == 0);
-            Check("last element found (cost 75 -> index 5)",
-                BinarySearchUtil.FindByKey(recipes, 75, r => r.Cost) == 5);
+            bool unique = true;
+            for (int i = 1; i < recipes.Count; i++)
+            {
+                if (recipes[i - 1].Cost == recipes[i].Cost) unique = false;
+            }
+            Check("every recipe cost is unique (one match per key)", unique);
+
+            Check("cost 22 found at index 2 (Iron Sword)",
+                BinarySearchUtil.FindByKey(recipes, 22, r => r.Cost) == 2);
+            Check("the trader has four weapon recipes", recipes.Count == 4);
+            Check("first element found (cost 8 -> index 0)",
+                BinarySearchUtil.FindByKey(recipes, 8, r => r.Cost) == 0);
+            Check("last element found (cost 46 -> index 3)",
+                BinarySearchUtil.FindByKey(recipes, 46, r => r.Cost) == 3);
             Check("missing cost returns -1",
                 BinarySearchUtil.FindByKey(recipes, 999, r => r.Cost) == -1);
             Check("empty list returns -1",
                 BinarySearchUtil.FindByKey(new List<CraftingRecipe>(), 5, r => r.Cost) == -1);
+
+            Check("RecipeBook.FindByCost(36) is null", RecipeBook.FindByCost(36) == null);
+            Check("RecipeBook.FindByCost(14) is null", RecipeBook.FindByCost(14) == null);
+            Check("recipe cost equals the value of its ingredients",
+                recipes.All(r => r.Cost == r.Ingredients.Sum(i => i.Quantity * i.UnitValue)));
         }
 
         // Graph + BFS: the distance field goblins follow to the hearth. 5x3 yard,

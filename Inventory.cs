@@ -32,6 +32,77 @@ namespace TileQuest
             return true;
         }
 
+        // Total quantity across every node with this name (pickups are stored
+        // as separate nodes, so a "stack" of wood is really several nodes).
+        public int CountOf(string name)
+        {
+            int total = 0;
+            foreach (Item item in _items)
+            {
+                if (item.Name == name)
+                {
+                    total += item.Quantity;
+                }
+            }
+            return total;
+        }
+
+        // Removes quantity units of name, draining nodes from the front and
+        // unlinking any that empty. All-or-nothing: returns false and changes
+        // nothing if the inventory holds fewer than quantity.
+        public bool RemoveQuantity(string name, int quantity)
+        {
+            if (quantity <= 0 || CountOf(name) < quantity)
+            {
+                return false;
+            }
+
+            int remaining = quantity;
+            var node = _items.First;
+            while (node != null && remaining > 0)
+            {
+                var next = node.Next;
+                if (node.Value.Name == name)
+                {
+                    if (node.Value.Quantity <= remaining)
+                    {
+                        remaining -= node.Value.Quantity;
+                        _items.Remove(node);
+                    }
+                    else
+                    {
+                        node.Value.Quantity -= remaining;
+                        remaining = 0;
+                    }
+                }
+                node = next;
+            }
+            return true;
+        }
+
+        public bool RemoveOne(string name, string category)
+        {
+            for (var node = _items.First; node != null; node = node.Next)
+            {
+                if (node.Value.Name != name || node.Value.Category != category)
+                {
+                    continue;
+                }
+
+                if (node.Value.Quantity <= 1)
+                {
+                    _items.Remove(node);
+                }
+                else
+                {
+                    node.Value.Quantity--;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
         public Item? Find(string name)
         {
             return FindNode(name)?.Value;

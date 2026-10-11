@@ -9,6 +9,10 @@ namespace TileQuest
         public static readonly Point SpawnPoint = new(22, 30);
         public static readonly Point WizardPosition = new(23, 30);
 
+        // The Village Trader stands in the forge area; the matching '#' in
+        // Rows (row 25, column 15) keeps her tile blocked.
+        public static readonly Point TraderPosition = new(14, 25);
+
         // Night defense. The hearth is a statue on a round platform on the central
         // plaza; HearthTile is the top-left tile of the statue's 2x2 base and
         // TileMap blocks those tiles. Goblins walk in from the
@@ -44,13 +48,13 @@ namespace TileQuest
             "...............##..................#######......",
             "..................###.......##.......#####...###",
             "....................#.#....#.................###",
-            ".....#...............#........##.........#......",
+            ".....#...............#......#............#......",
             "................................................",
             "................................................",
             ".....########.....................########......",
             "..##.############...............#.#############.",
             ".....#############.##.....##.......############.",
-            "...##.########..##............#################.",
+            "...##.#########..#............#################.",
             "...#..#######...##............#################.",
             "....#.##..##...............####################.",
             "..........#...................#################.",

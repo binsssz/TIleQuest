@@ -6,9 +6,8 @@ namespace TileQuest
     // DSA note: Binary Search piece. Repeatedly halves the search range
     // instead of scanning linearly — O(log n) instead of O(n) — but only
     // works because the input is sorted ascending by the key being searched.
-    // Intended for RecipeBook.SortedByCost (or any similarly sorted shop/
-    // recipe list): looking up "can I afford exactly this recipe?" or
-    // finding a recipe by its known cost.
+    // Used by RecipeBook.FindByCost to resolve the trader's price tags back
+    // to recipes (RecipeBook.SortedByCost is sorted ascending by Cost).
     public static class BinarySearchUtil
     {
         // Returns the index of the first item whose key matches targetKey,

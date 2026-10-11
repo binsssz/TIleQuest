@@ -20,11 +20,13 @@
 - `Space` or `J` performs a melee swing. Training enemies are stationary targets around map spawn points; they can be damaged, knocked back, and defeated, but do not pursue or attack.
 - Day/night: beside the village hearth (a praying-woman statue standing on a round stone platform on the central plaza, both from `Assets/TX Props.png`; the statue's 2×2 base at top-left tile `(24, 19)` is blocked for movement and the platform is walkable floor; at night a warm additive glow marks the hearth and fades as its HP drops), `E` then `Y`/`Enter` starts the next night (of 5). `WaveSpawner` dequeues goblins on its timer at `VillageCollisionLayout.EnemyEntryPoints`; they follow a BFS distance field (`HearthPathField`) to the hearth and strike it (`Hearth`, 100 HP, persists between nights). Clearing the wave returns to day, advances the day count, and regrows harvested nodes. If the hearth is destroyed the night is cleared and retried (placeholder until the Milestone 4 Defeat ending). A top-centre HUD shows day/night, goblins left, and hearth HP. Marching goblins use the orc run sheet (`Assets/Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png`) and face their direction of travel; standing goblins use the idle sheet and face the hearth. Goblins do not attack the player, and the village wizard is disabled at night.
 - A screen-space HUD shows red health and blue energy bars at the lower left and a 4 × 2, Minecraft-style inventory grid at the lower right. The bars are currently visual-only; player health and energy mechanics are not implemented.
+- Press `I` to open the full inventory menu, or `E` when no nearby world interaction applies. `W`/`S` or the arrow keys select grouped items; `Enter` equips the selected crafted weapon, `D` discards one unit, and `Esc` closes the menu. Food use is deferred until a separate food trader and functional player health are implemented.
+- Day trader: the tavern woman (`Assets/Entities/Npc's/Citizen_F/Tavern_A/Idle/Idle_Side-Sheet.png`) stands in the blocked forge-area tile `VillageCollisionLayout.TraderPosition` (15, 25). Beside her, `E` opens a menu of `RecipeBook.SortedByCost` (4 weapons, each recipe's cost being the market value of its ingredients). `W`/`S` select, `E` crafts, `Esc` closes. Weapon icons from `Assets/Free_Icons_all_16x16.png` appear beside recipes and in inventory slots. The highlighted cost is resolved to its recipe with `BinarySearchUtil.FindByKey` (`RecipeBook.FindByCost`). Crafting spends materials from `Inventory`, adds a `Gear`-category item, and pushes a `PlayerAction` onto `ActionHistory`. `U` (day only) undoes the latest craft: the weapon is removed, materials refunded; history clears at dawn. The strongest crafted weapon adds its `Power` to `SwingDamage` and is shown above the inventory. Player health and food-based healing are deferred until a separate food trader is added.
 - `F3` toggles the hitbox/debug overlay.
 - Startup runs `TileGraph` connectivity checks and `DsaDemo` self-checks.
-- Queue, stack, linked-list inventory, binary-search, and insertion-sort code exists as standalone DSA modules; undo, crafting, and a player-facing puzzle are not implemented.
+- Queue, stack, linked-list inventory, binary-search, and insertion-sort code exists as standalone DSA modules; a player-facing puzzle is not implemented.
 
-Do not describe resource gathering, player health, dungeon puzzles, bosses, endings, or high scores as shipped unless later code changes implement them.
+Do not describe player health, dungeon puzzles, bosses, endings, or high scores as shipped unless later code changes implement them.
 
 ## Important code map
 
@@ -44,9 +46,10 @@ Do not describe resource gathering, player health, dungeon puzzles, bosses, endi
 | `DsaDemo.cs` | Startup checks for the DSA modules |
 | `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Timed FIFO enemy-spawn queue; drives the night wave in `Game1` |
 | `GameState.cs`, `Hearth.cs`, `HearthPathField.cs` | Day/Night state, hearth HP/footprint, and the BFS distance field goblins follow |
-| `ActionHistory.cs`, `PlayerAction.cs` | Standalone LIFO undo-history module |
-| `Inventory.cs`, `Item.cs` | Standalone linked-list inventory and sorted snapshot |
-| `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Binary-search utility and recipe sample |
+| `ActionHistory.cs`, `PlayerAction.cs` | LIFO undo-history module; drives crafting undo (`U`) |
+| `Crafting.cs`, `RecipeBook.cs`, `CraftingRecipe.cs` | Trader weapon-crafting rules, the cost-sorted recipe book, and the best-weapon lookup |
+| `Inventory.cs`, `Item.cs` | Linked-list inventory (`CountOf`, `RemoveQuantity`) and sorted snapshot |
+| `BinarySearchUtil.cs` | Binary-search utility used by `RecipeBook.FindByCost` |
 | `InsertionSortUtil.cs` | Generic descending insertion sort |
 | `TileSprites.cs`, `pathcorners.cs`, `Draw*.cs` | Sprite source rectangles and world object rendering |
 
@@ -114,10 +117,10 @@ This roadmap outlines the step-by-step implementation plan for the remaining 4-d
 * **DSA Modules:** Binary Search (`BinarySearchUtil.cs`) & Stack (`ActionHistory.cs`).
 * **Implementation Steps:**
   1. Build a basic trader interaction prompt at the Village Trader position.
-  2. Wire `BinarySearchUtil.FindByKey()` to look up craftable weapons and armor in `RecipeBook.SortedByCost` based on available inventory resources.
+  2. Wire `BinarySearchUtil.FindByKey()` to look up craftable weapons in `RecipeBook.SortedByCost` based on available inventory resources.
   3. When crafting or trading succeeds, deduct resources from `Inventory` and push a `PlayerAction` onto `ActionHistory` (`_history.Record(...)`).
   4. Wire the **'U'** key to invoke `_history.Undo()`, popping the top action stack record, removing the created item, and refunding the spent materials back to `Inventory`.
-* **Verification:** Searching recipes returns exact cost matches, crafting equips new gear, and pressing 'U' instantly undoes the transaction.
+* **Verification:** Searching recipes returns exact cost matches, crafting equips a weapon, and pressing 'U' instantly undoes the transaction.
 
 ---
 

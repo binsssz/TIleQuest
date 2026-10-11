@@ -1,39 +1,27 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TileQuest
 {
-    // A crafting recipe or shop listing — deliberately simple, since the
-    // point of this class is to be something BinarySearchUtil can look up by
-    // Cost, not a full crafting system.
+    // One material a recipe consumes. UnitValue is that item's market value,
+    // so a recipe's Cost and the values stored in the inventory always agree.
+    public readonly record struct RecipeIngredient(string ItemName, string Category, int Quantity, int UnitValue);
+
+    // A weapon crafted by the Village Trader. Cost is the total market value
+    // of its ingredients; RecipeBook is sorted by it for binary search.
     public class CraftingRecipe
     {
         public string Name { get; }
+        public int Power { get; }
+        public IReadOnlyList<RecipeIngredient> Ingredients { get; }
         public int Cost { get; }
-        public string ResultItem { get; }
 
-        public CraftingRecipe(string name, int cost, string resultItem)
+        public CraftingRecipe(string name, int power, params RecipeIngredient[] ingredients)
         {
             Name = name;
-            Cost = cost;
-            ResultItem = resultItem;
+            Power = power;
+            Ingredients = ingredients;
+            Cost = ingredients.Sum(ingredient => ingredient.Quantity * ingredient.UnitValue);
         }
-    }
-
-    // A small hardcoded, cost-sorted recipe list to demonstrate/exercise
-    // BinarySearchUtil against. The real Village Trader shop (Phase 7) can
-    // replace or extend this list — the important part for grading purposes
-    // is that it stays sorted by Cost ascending, since binary search only
-    // works on sorted data.
-    public static class RecipeBook
-    {
-        public static readonly List<CraftingRecipe> SortedByCost = new()
-        {
-            new CraftingRecipe("Wooden Spike", 5, "Spike Trap"),
-            new CraftingRecipe("Stone Wall", 10, "Wall Segment"),
-            new CraftingRecipe("Iron Axe", 20, "Axe"),
-            new CraftingRecipe("Reinforced Gate", 35, "Gate"),
-            new CraftingRecipe("Watchtower", 50, "Tower"),
-            new CraftingRecipe("Hearth Ward", 75, "Ward"),
-        };
     }
 }

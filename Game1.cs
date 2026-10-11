@@ -32,6 +32,7 @@ namespace TileQuest
         private Texture2D _house2Texture = null!;
         private Texture2D _playerTexture = null!;
         private Texture2D _wizardTexture = null!;
+        private Texture2D _traderTexture = null!;
         private Texture2D _pixelTexture = null!;
         private Texture2D _hearthGlowTexture = null!;
         private Texture2D _txPropsTexture = null!;
@@ -55,6 +56,7 @@ namespace TileQuest
         private TileMap _map = null!;
         private readonly Dictionary<WorldMapType, TileMap> _maps = new();
         private readonly Inventory _inventory = new();
+        private readonly ActionHistory _history = new();   // LIFO undo stack for crafting (U key)
         private Player _player = null!;
         private Camera2D _camera = null!;
         private MapTravel? _pendingTravel;
@@ -92,6 +94,19 @@ namespace TileQuest
         private Texture2D _enemyHandsTexture = null!;
         private Texture2D _enemyRunTexture = null!;
         private const int SwingDamage = 5;
+        private bool _traderOpen;
+        private int _traderSelection;
+        private bool _inventoryOpen;
+        private int _inventorySelection;
+        private int _inventoryScroll;
+        private string? _equippedWeaponName;
+        // Tavern_A Idle sheet: 4 frames of 64x64 in one row, the woman's
+        // feet on source row 48.
+        private const int TraderCellSize = 64;
+        private const int TraderFrameCount = 4;
+        private const float TraderFramesPerSecond = 4f;
+        private const int TraderFeetRow = 48;
+        private const float TraderScale = 1.1f;
         private const int EnemyMaxHealth = 20;
         private const int EnemyCellSize = 32;       // Idle-Sheet.png: 4 frames of 32x32 in one row
         private const int EnemyFrameCount = 4;
@@ -224,6 +239,7 @@ namespace TileQuest
             _house2Texture = LoadTexture("Buildings/HOUSE 2.png");
             _playerTexture = LoadTexture("Characters/player.png");
             _wizardTexture = LoadTexture("npc_sprite.png");
+            _traderTexture = LoadTexture("Entities/Npc's/Citizen_F/Tavern_A/Idle/Idle_Side-Sheet.png");
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
             _enemyRunTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png");
@@ -424,7 +440,7 @@ namespace TileQuest
                     continue;
                 }
 
-                enemy.TakeDamage(SwingDamage);
+                enemy.TakeDamage(SwingDamage + WeaponBonus());
                 if (!enemy.IsAlive)
                 {
                     foreach (var drop in enemy.DropLoot())
@@ -570,6 +586,7 @@ namespace TileQuest
             _gameState = GameState.Day;
             _hearthPaths = null;
             _dayCount++;
+            _history.ClearForNewDay();   // yesterday's crafting can no longer be undone
             RestoreResourceNodesForNewDay();
 
             if (_nightNumber >= MaxNights)
@@ -703,6 +720,182 @@ namespace TileQuest
             _spriteBatch.End();
         }
 
+        private CraftingRecipe? EquippedWeapon()
+        {
+            if (_equippedWeaponName != null)
+            {
+                bool stillOwned = _inventory.Items.Any(item =>
+                    item.Category == Crafting.GearCategory && item.Name == _equippedWeaponName);
+                if (stillOwned)
+                {
+                    return RecipeBook.FindByName(_equippedWeaponName);
+                }
+
+                _equippedWeaponName = null;
+            }
+
+            return Crafting.GetBestWeapon(_inventory);
+        }
+
+        private List<(string Name, string Category, int Quantity)> GetInventoryEntries()
+        {
+            var entries = new List<(string Name, string Category, int Quantity)>();
+            var indexes = new Dictionary<(string Name, string Category), int>();
+
+            foreach (Item item in _inventory.Items)
+            {
+                var key = (item.Name, item.Category);
+                if (indexes.TryGetValue(key, out int index))
+                {
+                    var entry = entries[index];
+                    entries[index] = (entry.Name, entry.Category, entry.Quantity + item.Quantity);
+                }
+                else
+                {
+                    indexes.Add(key, entries.Count);
+                    entries.Add((item.Name, item.Category, item.Quantity));
+                }
+            }
+
+            return entries;
+        }
+
+        private void UpdateInventoryMenu(KeyboardState keyboard)
+        {
+            List<(string Name, string Category, int Quantity)> entries = GetInventoryEntries();
+            if (WasPressed(keyboard, Keys.Escape))
+            {
+                _inventoryOpen = false;
+                return;
+            }
+
+            if (entries.Count == 0)
+            {
+                _inventorySelection = 0;
+                _inventoryScroll = 0;
+                return;
+            }
+
+            _inventorySelection = Math.Clamp(_inventorySelection, 0, entries.Count - 1);
+            if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
+            {
+                _inventorySelection = (_inventorySelection + entries.Count - 1) % entries.Count;
+            }
+            else if (WasPressed(keyboard, Keys.Down) || WasPressed(keyboard, Keys.S))
+            {
+                _inventorySelection = (_inventorySelection + 1) % entries.Count;
+            }
+            else if (WasPressed(keyboard, Keys.Enter) || WasPressed(keyboard, Keys.E))
+            {
+                var selected = entries[_inventorySelection];
+                if (selected.Category == Crafting.GearCategory &&
+                    RecipeBook.FindByName(selected.Name) is CraftingRecipe recipe)
+                {
+                    _equippedWeaponName = recipe.Name;
+                    ShowBanner($"EQUIPPED {recipe.Name.ToUpperInvariant()}");
+                }
+                else
+                {
+                    ShowBanner("ITEM CANNOT BE USED");
+                }
+            }
+            else if (WasPressed(keyboard, Keys.D))
+            {
+                var selected = entries[_inventorySelection];
+                if (_inventory.RemoveOne(selected.Name, selected.Category))
+                {
+                    bool stillOwned = _inventory.Items.Any(item =>
+                        item.Category == Crafting.GearCategory && item.Name == selected.Name);
+                    if (_equippedWeaponName == selected.Name && !stillOwned)
+                    {
+                        _equippedWeaponName = null;
+                    }
+                    ShowBanner($"DROPPED {selected.Name.ToUpperInvariant()}");
+                    entries = GetInventoryEntries();
+                    _inventorySelection = Math.Min(_inventorySelection, Math.Max(0, entries.Count - 1));
+                }
+            }
+
+            const int visibleRows = 10;
+            _inventoryScroll = Math.Clamp(_inventoryScroll, 0, Math.Max(0, entries.Count - visibleRows));
+            if (_inventorySelection < _inventoryScroll)
+            {
+                _inventoryScroll = _inventorySelection;
+            }
+            else if (_inventorySelection >= _inventoryScroll + visibleRows)
+            {
+                _inventoryScroll = _inventorySelection - visibleRows + 1;
+            }
+        }
+
+        private void DrawInventoryMenu()
+        {
+            List<(string Name, string Category, int Quantity)> entries = GetInventoryEntries();
+            Viewport viewport = GraphicsDevice.Viewport;
+            const int panelMargin = 36;
+            const int rowHeight = 42;
+            const int visibleRows = 10;
+            var panel = new Rectangle(
+                panelMargin,
+                panelMargin,
+                viewport.Width - panelMargin * 2,
+                viewport.Height - panelMargin * 2);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, viewport.Bounds, new Color(0, 0, 0, 190));
+            DrawHudPanel(panel);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "INVENTORY", new Point(panel.X + 16, panel.Y + 14), 3, Color.Wheat);
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                "UP DOWN SELECT   ENTER EQUIP   D DROP ONE   ESC CLOSE",
+                new Point(panel.X + 16, panel.Y + 48), 1, Color.LightGray);
+
+            int visibleCount = Math.Min(visibleRows, Math.Max(0, entries.Count - _inventoryScroll));
+            for (int rowIndex = 0; rowIndex < visibleCount; rowIndex++)
+            {
+                int itemIndex = _inventoryScroll + rowIndex;
+                var entry = entries[itemIndex];
+                int rowY = panel.Y + 72 + rowIndex * rowHeight;
+                var row = new Rectangle(panel.X + 12, rowY, panel.Width - 24, rowHeight - 4);
+                bool selected = itemIndex == _inventorySelection;
+                _spriteBatch.Draw(
+                    _pixelTexture,
+                    row,
+                    selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+                DrawInventoryItemIcon(entry.Name, new Rectangle(row.X + 8, row.Y + 6, 24, 24));
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture,
+                    entry.Name.ToUpperInvariant(),
+                    new Point(row.X + 42, row.Y + 7), 2, Color.White);
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture,
+                    entry.Category.ToUpperInvariant(),
+                    new Point(row.X + 300, row.Y + 10), 1, Color.LightGray);
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture,
+                    $"X {entry.Quantity}",
+                    new Point(row.Right - 72, row.Y + 10), 1, Color.Wheat);
+
+                if (entry.Category == Crafting.GearCategory &&
+                    EquippedWeapon()?.Name == entry.Name)
+                {
+                    BitmapFont.Draw(
+                        _spriteBatch, _pixelTexture, "EQUIPPED",
+                        new Point(row.Right - 150, row.Y + 10), 1, Color.LimeGreen);
+                }
+            }
+
+            if (entries.Count == 0)
+            {
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture, "INVENTORY EMPTY",
+                    new Point(panel.X + 24, panel.Y + 92), 2, Color.LightGray);
+            }
+
+            _spriteBatch.End();
+        }
+
         protected override void Update(GameTime gameTime)
         {
             var keyboard = Keyboard.GetState();
@@ -734,9 +927,17 @@ namespace TileQuest
                     _pendingNightStart = false;
                 }
             }
+            else if (_inventoryOpen)
+            {
+                UpdateInventoryMenu(keyboard);
+            }
             else if (_openChest != null)
             {
                 UpdateChestMenu(keyboard);
+            }
+            else if (_traderOpen)
+            {
+                UpdateTraderMenu(keyboard);
             }
             else if (WasPressed(keyboard, Keys.Escape))
             {
@@ -746,6 +947,21 @@ namespace TileQuest
             {
                 bool attackPressed = WasPressed(keyboard, Keys.Space) || WasPressed(keyboard, Keys.J);
                 bool interacted = WasPressed(keyboard, Keys.E) && TryOpenNearbyChest();
+                if (WasPressed(keyboard, Keys.U))
+                {
+                    TryUndoLastAction();
+                }
+
+                if (!interacted &&
+                    _gameState == GameState.Day &&
+                    WasPressed(keyboard, Keys.E) &&
+                    IsPlayerBesideTrader())
+                {
+                    _traderOpen = true;
+                    _traderSelection = 0;
+                    interacted = true;
+                }
+
                 if (!interacted &&
                     _gameState == GameState.Day &&
                     WasPressed(keyboard, Keys.E) &&
@@ -759,6 +975,7 @@ namespace TileQuest
                     {
                         _pendingNightStart = true;
                     }
+                    interacted = true;
                 }
 
                 if (!interacted &&
@@ -770,6 +987,15 @@ namespace TileQuest
                     _pendingTravel = new MapTravel(
                         WorldMapType.Forest,
                         _maps[WorldMapType.Forest].SpawnPoint);
+                    interacted = true;
+                }
+
+                if (!interacted && (WasPressed(keyboard, Keys.I) || WasPressed(keyboard, Keys.E)))
+                {
+                    _inventoryOpen = true;
+                    _inventorySelection = 0;
+                    _inventoryScroll = 0;
+                    interacted = true;
                 }
 
                 if (!interacted)
@@ -802,6 +1028,7 @@ namespace TileQuest
                 DrawHearthPlatform(_spriteBatch);
                 DrawVillageActors(gameTime);
                 DrawVillageObjectLayer(_villageObjectsMainTexture);
+                DrawTrader(gameTime);
             }
             else if (_map.MapType == WorldMapType.Dungeon)
             {
@@ -860,6 +1087,16 @@ namespace TileQuest
             if (_openChest != null)
             {
                 DrawChestPopup(_openChest);
+            }
+
+            if (_traderOpen)
+            {
+                DrawTraderMenu();
+            }
+
+            if (_inventoryOpen)
+            {
+                DrawInventoryMenu();
             }
 
             if (_pendingTravel is MapTravel travel)
@@ -965,6 +1202,17 @@ namespace TileQuest
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, hint, new Point(hintX + 10, hintY + 8), 2, Color.Gold);
             }
 
+            if (!night && !_traderOpen && _pendingTravel == null && _pendingNightStart == false &&
+                _openChest == null && IsPlayerBesideTrader())
+            {
+                const string tradeHint = "TRADER  E=CRAFT  U=UNDO";
+                int hintWidth = tradeHint.Length * 12 + 20;
+                int hintX = (viewport.Width - hintWidth) / 2;
+                int hintY = viewport.Height - 52;
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(hintX, hintY, hintWidth, 30), new Color(18, 15, 14, 225));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, tradeHint, new Point(hintX + 10, hintY + 8), 2, Color.Gold);
+            }
+
             if (_bannerRemaining > 0f)
             {
                 float alpha = Math.Clamp(_bannerRemaining / 0.8f, 0f, 1f);
@@ -1062,7 +1310,20 @@ namespace TileQuest
                     Color.White);
             }
 
+            // The best crafted weapon, just above the inventory grid.
+            var gearBounds = new Rectangle(panelX, panelY - 30, panelWidth, 24);
+            DrawHudPanel(gearBounds);
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                $"WEAPON {GearLabel(EquippedWeapon())}",
+                new Point(gearBounds.X + 8, gearBounds.Y + 8), 1, Color.Wheat);
+
             _spriteBatch.End();
+        }
+
+        private static string GearLabel(CraftingRecipe? recipe)
+        {
+            return recipe == null ? "NONE" : $"{recipe.Name.ToUpperInvariant()} +{recipe.Power}";
         }
 
         private bool TryOpenNearbyChest()
@@ -1263,6 +1524,10 @@ namespace TileQuest
                 "IRON" => new Rectangle(0, 32, 16, 16),
                 "GOLD" => new Rectangle(48, 32, 16, 16),
                 "BONE" => new Rectangle(64, 272, 16, 16),
+                "WOODEN CLUB" => new Rectangle(32, 128, 16, 16),
+                "STONE MACE" => new Rectangle(16, 128, 16, 16),
+                "IRON SWORD" => new Rectangle(0, 128, 16, 16),
+                "GOLD BLADE" => new Rectangle(48, 128, 16, 16),
                 _ => null,
             };
 
@@ -1351,6 +1616,166 @@ namespace TileQuest
                     effects: sprite.Flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None,
                     layerDepth: 0f);
             }
+        }
+
+        // ---- Village Trader: crafting (binary search) and undo (stack) --------
+
+        private bool IsPlayerBesideTrader()
+        {
+            if (_map.MapType != WorldMapType.Village)
+            {
+                return false;
+            }
+
+            Point player = _player.GridPosition;
+            Point trader = VillageCollisionLayout.TraderPosition;
+            return Math.Abs(player.X - trader.X) + Math.Abs(player.Y - trader.Y) <= 1;
+        }
+
+        // Extra swing damage from the best crafted weapon in the inventory.
+        private int WeaponBonus()
+        {
+            return EquippedWeapon()?.Power ?? 0;
+        }
+
+        private void UpdateTraderMenu(KeyboardState keyboard)
+        {
+            int count = RecipeBook.SortedByCost.Count;
+            if (WasPressed(keyboard, Keys.Escape))
+            {
+                _traderOpen = false;
+            }
+            else if (WasPressed(keyboard, Keys.W) || WasPressed(keyboard, Keys.Up))
+            {
+                _traderSelection = (_traderSelection + count - 1) % count;
+            }
+            else if (WasPressed(keyboard, Keys.S) || WasPressed(keyboard, Keys.Down))
+            {
+                _traderSelection = (_traderSelection + 1) % count;
+            }
+            else if (WasPressed(keyboard, Keys.E) || WasPressed(keyboard, Keys.Enter))
+            {
+                CraftSelectedRecipe();
+            }
+            else if (WasPressed(keyboard, Keys.U))
+            {
+                TryUndoLastAction();
+            }
+        }
+
+        private void CraftSelectedRecipe()
+        {
+            // The highlighted row's price tag is resolved back to a recipe with
+            // a binary search over the cost-sorted RecipeBook.
+            int selectedCost = RecipeBook.SortedByCost[_traderSelection].Cost;
+            CraftingRecipe? recipe = RecipeBook.FindByCost(selectedCost);
+            if (recipe == null)
+            {
+                return;
+            }
+
+            if (Crafting.TryCraft(_inventory, _history, recipe))
+            {
+                ShowBanner($"CRAFTED {recipe.Name.ToUpperInvariant()}");
+            }
+            else
+            {
+                ShowBanner("NEED MORE MATERIALS");
+            }
+        }
+
+        // U: pops the most recent crafting transaction off the stack, removes
+        // the gear it made and refunds the materials it spent.
+        private void TryUndoLastAction()
+        {
+            if (_gameState != GameState.Day)
+            {
+                return;
+            }
+
+            PlayerAction? undone = Crafting.UndoLast(_inventory, _history);
+            ShowBanner(undone == null ? "NOTHING TO UNDO" : $"UNDID {undone.Description.ToUpperInvariant()}");
+        }
+
+        private void DrawTrader(GameTime gameTime)
+        {
+            Point tile = VillageCollisionLayout.TraderPosition;
+            int frame = (int)(gameTime.TotalGameTime.TotalSeconds * TraderFramesPerSecond) % TraderFrameCount;
+            var source = new Rectangle(frame * TraderCellSize, 0, TraderCellSize, TraderCellSize);
+            int size = (int)Math.Round(TraderCellSize * TraderScale);
+            int feetY = (int)Math.Round(TraderFeetRow * TraderScale);
+            var destination = new Rectangle(
+                tile.X * TileSize + (TileSize - size) / 2,
+                (tile.Y + 1) * TileSize - feetY,
+                size,
+                size);
+
+            // The sheet faces right; turn her toward the player when they are on her left.
+            SpriteEffects effects = _player.GridPosition.X < tile.X
+                ? SpriteEffects.FlipHorizontally
+                : SpriteEffects.None;
+            _spriteBatch.Draw(_traderTexture, destination, source, Color.White, 0f, Vector2.Zero, effects, 0f);
+        }
+
+        private void DrawTraderMenu()
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            IReadOnlyList<CraftingRecipe> recipes = RecipeBook.SortedByCost;
+            const int rowHeight = 36;
+            const int panelWidth = 520;
+            int panelHeight = 46 + recipes.Count * rowHeight + 28;
+            int panelX = (viewport.Width - panelWidth) / 2;
+            int panelY = (viewport.Height - panelHeight) / 2;
+
+            CraftingRecipe? weapon = EquippedWeapon();
+            var dimText = new Color(130, 122, 114);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "TRADER", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                $"WEAPON {GearLabel(weapon)}",
+                new Point(panelX + 12, panelY + 30), 1, Color.LightGray);
+
+            for (int i = 0; i < recipes.Count; i++)
+            {
+                CraftingRecipe recipe = recipes[i];
+                bool craftable = Crafting.CanCraft(_inventory, recipe);
+                bool selected = i == _traderSelection;
+                int rowY = panelY + 46 + i * rowHeight;
+                var row = new Rectangle(panelX + 8, rowY, panelWidth - 16, rowHeight - 4);
+
+                _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+
+                Color nameColor = craftable ? Color.White : dimText;
+                DrawInventoryItemIcon(recipe.Name, new Rectangle(row.X + 8, rowY + 4, 16, 16));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, recipe.Name.ToUpperInvariant(), new Point(row.X + 30, rowY + 4), 2, nameColor);
+                string stat = $"+{recipe.Power} DMG";
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, stat, new Point(row.X + 166, rowY + 4), 2, nameColor);
+
+                if (recipe == weapon)
+                {
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, "EQUIPPED", new Point(row.X + 390, rowY + 8), 1, Color.LimeGreen);
+                }
+
+                int cursorX = row.X + 8;
+                foreach (RecipeIngredient ingredient in recipe.Ingredients)
+                {
+                    int have = _inventory.CountOf(ingredient.ItemName);
+                    string text = $"{ingredient.ItemName.ToUpperInvariant()} {have}/{ingredient.Quantity}";
+                    Color color = have >= ingredient.Quantity ? new Color(140, 220, 140) : new Color(225, 110, 100);
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, text, new Point(cursorX, rowY + 21), 1, color);
+                    cursorX += text.Length * 6 + 14;
+                }
+            }
+
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                "W/S SELECT   E CRAFT   U UNDO   ESC CLOSE",
+                new Point(panelX + 12, panelY + panelHeight - 16), 1, Color.Wheat);
+            _spriteBatch.End();
         }
 
         private bool IsPlayerBesideWizard()
