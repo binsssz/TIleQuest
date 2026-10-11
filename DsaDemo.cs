@@ -24,6 +24,7 @@ namespace TileQuest
             DemoLinkedList();
             DemoBinarySearch();
             DemoInsertionSort();
+            DemoPathField();
             Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         }
 
@@ -59,6 +60,11 @@ namespace TileQuest
 
             spawner.QueueWave(nightNumber: 3);
             Check("later nights are bigger (night 3 > night 1)", spawner.RemainingInWave > expected);
+
+            spawner.QueueWave(nightNumber: 5);
+            Check("night 5 queues 13 enemies", spawner.RemainingInWave == 3 + 5 * 2);
+            spawner.ClearWave();
+            Check("ClearWave empties the queue", spawner.IsWaveComplete && spawner.Update(2f) == null);
         }
 
         // Stack: undo must remove the most recent action first (LIFO).
@@ -127,6 +133,29 @@ namespace TileQuest
                 BinarySearchUtil.FindByKey(recipes, 999, r => r.Cost) == -1);
             Check("empty list returns -1",
                 BinarySearchUtil.FindByKey(new List<CraftingRecipe>(), 5, r => r.Cost) == -1);
+        }
+
+        // Graph + BFS: the distance field goblins follow to the hearth. 5x3 yard,
+        // a wall across x=2 with a gap at y=2, and the hearth at (4,1).
+        private static void DemoPathField()
+        {
+            Console.WriteLine("Graph + BFS (HearthPathField)");
+            var blocked = new HashSet<Point> { new(2, 0), new(2, 1), new(4, 1) };
+            var field = new HearthPathField(
+                new[] { new Point(4, 1) },
+                tile => !blocked.Contains(tile),
+                width: 5,
+                height: 3);
+
+            Check("tiles beside the hearth are distance 0", field.DistanceTo(new Point(3, 1)) == 0);
+            Check("BFS counts the walk through the gap (2,2) = 2", field.DistanceTo(new Point(2, 2)) == 2);
+            Check("walls are unreachable (-1)", field.DistanceTo(new Point(2, 1)) == -1);
+            Check("NextStep moves to the closer tile",
+                field.NextStep(new Point(1, 1), _ => false) == new Point(1, 2));
+            Check("NextStep waits when every closer tile is taken",
+                field.NextStep(new Point(1, 1), tile => tile == new Point(1, 2)) == null);
+            Check("NextStep returns null once at the hearth",
+                field.NextStep(new Point(3, 1), _ => false) == null);
         }
 
         // Insertion sort: highest value first.

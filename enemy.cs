@@ -5,18 +5,24 @@ using Microsoft.Xna.Framework;
 namespace TileQuest
 {
     // A target the player can hit. Grid-locked like the player: it always
-    // occupies exactly one tile, and is only moved by being knocked back, which
-    // slides it smoothly to the new tile. It does not move or attack on its own
-    // yet.
+    // occupies exactly one tile and slides smoothly between tiles. Training
+    // enemies only move when knocked back; wave enemies (IsWaveEnemy) are also
+    // marched toward the hearth by the game via MarchTo and strike it with
+    // TryStrike.
     public class Enemy
     {
-        private const float SlideTilesPerSecond = 14f;
+        private const float KnockbackTilesPerSecond = 14f;
+        private const float StunSeconds = 0.35f;        // after a hit, so knockback is not walked straight back
+        private const float FirstStrikeDelaySeconds = 0.5f;
         private const float HitFlashSeconds = 0.15f;
         private const float DeathFadeSeconds = 0.35f;
 
         private readonly int _tileSize;
         private Vector2 _targetPixelPosition;
         private float _deathRemainingSeconds;
+        private float _slideTilesPerSecond = KnockbackTilesPerSecond;
+        private float _stunRemaining;
+        private float _attackCooldownRemaining = FirstStrikeDelaySeconds;
 
         public Point GridPosition { get; private set; }
         public Vector2 PixelPosition { get; private set; }
@@ -29,6 +35,17 @@ namespace TileQuest
         public float HitFlashRemaining { get; private set; }
 
         public bool IsAlive => Health > 0;
+
+        // True for goblins spawned by the night wave (not training dummies).
+        public bool IsWaveEnemy { get; init; }
+
+        // How fast a wave enemy walks, in tiles per second.
+        public float MarchTilesPerSecond { get; init; } = 2f;
+
+        // True while the sprite is still sliding toward its tile.
+        public bool IsSliding => PixelPosition != _targetPixelPosition;
+
+        public bool IsStunned => _stunRemaining > 0f;
 
         // 1 -> 0 while a dead enemy fades out.
         public float DeathFade => IsAlive ? 1f : Math.Clamp(_deathRemainingSeconds / DeathFadeSeconds, 0f, 1f);
@@ -55,6 +72,7 @@ namespace TileQuest
 
             Health = Math.Max(0, Health - amount);
             HitFlashRemaining = HitFlashSeconds;
+            _stunRemaining = StunSeconds;
             if (!IsAlive)
             {
                 _deathRemainingSeconds = DeathFadeSeconds;
@@ -89,12 +107,36 @@ namespace TileQuest
         {
             GridPosition = tile;
             _targetPixelPosition = new Vector2(tile.X * _tileSize, tile.Y * _tileSize);
+            _slideTilesPerSecond = KnockbackTilesPerSecond;
+        }
+
+        // One step of the march: same grid-locked slide as a knockback, but at
+        // the enemy's own walking speed. The caller picks a free neighbour tile.
+        public void MarchTo(Point tile)
+        {
+            GridPosition = tile;
+            _targetPixelPosition = new Vector2(tile.X * _tileSize, tile.Y * _tileSize);
+            _slideTilesPerSecond = MarchTilesPerSecond;
+        }
+
+        // Starts a strike if the cooldown has run out; returns whether it did.
+        public bool TryStrike(float cooldownSeconds)
+        {
+            if (!IsAlive || _attackCooldownRemaining > 0f)
+            {
+                return false;
+            }
+
+            _attackCooldownRemaining = cooldownSeconds;
+            return true;
         }
 
         public void Update(float deltaSeconds)
         {
             AnimationTime += deltaSeconds;
             HitFlashRemaining = Math.Max(0f, HitFlashRemaining - deltaSeconds);
+            _stunRemaining = Math.Max(0f, _stunRemaining - deltaSeconds);
+            _attackCooldownRemaining = Math.Max(0f, _attackCooldownRemaining - deltaSeconds);
 
             if (!IsAlive)
             {
@@ -103,7 +145,7 @@ namespace TileQuest
 
             Vector2 toTarget = _targetPixelPosition - PixelPosition;
             float distance = toTarget.Length();
-            float step = SlideTilesPerSecond * _tileSize * deltaSeconds;
+            float step = _slideTilesPerSecond * _tileSize * deltaSeconds;
             if (distance <= 0f)
             {
                 return;

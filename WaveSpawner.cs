@@ -32,6 +32,13 @@ namespace TileQuest
             _timeUntilNextSpawn = 0f;
         }
 
+        // Drops whatever is still queued (a night that ended early).
+        public void ClearWave()
+        {
+            _pendingSpawns.Clear();
+            _timeUntilNextSpawn = 0f;
+        }
+
         // Call every frame during NightPhase. Returns the next enemy to
         // spawn once its delay has elapsed, or null if it's not time yet
         // (or the wave is already empty).

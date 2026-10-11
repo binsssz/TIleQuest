@@ -34,6 +34,7 @@ namespace TileQuest
         private Texture2D _pixelTexture = null!;
         private Texture2D _bonfireTexture = null!;
         private Texture2D _bonfireFlameTexture = null!;
+        private Texture2D _txPropsTexture = null!;
         private Texture2D _lampTexture = null!;
         private Texture2D _forestTerrainTexture = null!;
         private Texture2D _dungeonTexture = null!;
@@ -58,6 +59,27 @@ namespace TileQuest
         private Camera2D _camera = null!;
         private MapTravel? _pendingTravel;
         private KeyboardState _previousKeyboard;
+
+        // Night defense. Day: explore, gather, craft. Night: light the village
+        // hearth and defend it from a queued wave of goblins (FIFO WaveSpawner).
+        private const int MaxNights = 5;
+        private const int HearthHitDamage = 3;           // per goblin strike
+        private const float HearthHitSeconds = 1.2f;     // between one goblin's strikes
+        private const float MarchSpeedScale = 2f;        // EnemySpawnInfo.Speed -> tiles per second
+        private const float NightDimAlpha = 0.5f;
+        private const float BannerSeconds = 3f;
+        private GameState _gameState = GameState.Day;
+        private int _dayCount = 1;
+        private int _nightNumber;                        // 0 until the first night starts
+        private int _kills;                              // wave goblins defeated (Milestone 4 score)
+        private bool _allNightsSurvived;
+        private bool _pendingNightStart;
+        private string _bannerText = string.Empty;
+        private float _bannerRemaining;
+        private readonly WaveSpawner _spawner = new();
+        private readonly Hearth _hearth = new(VillageCollisionLayout.HearthTile, VillageCollisionLayout.HearthSize);
+        private HearthPathField? _hearthPaths;
+        private Point[] _entryPoints = Array.Empty<Point>();
 
         // Combat. Enemies are kept per map so each map's mobs stay where the
         // player left them. Attack with Space or J.
@@ -191,6 +213,7 @@ namespace TileQuest
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
             _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
             _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
+            _txPropsTexture = LoadTexture("TX Props.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
             _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
             _dungeonTexture = LoadTexture("dungeon.png");
@@ -366,6 +389,10 @@ namespace TileQuest
                     {
                         _inventory.AddItem(drop);
                     }
+                    if (enemy.IsWaveEnemy)
+                    {
+                        _kills++;
+                    }
                     continue;
                 }
 
@@ -375,6 +402,180 @@ namespace TileQuest
                     enemy.KnockBackTo(destination);
                 }
             }
+        }
+
+        private bool IsPlayerBesideHearth()
+        {
+            return _map.MapType == WorldMapType.Village &&
+                   _hearth.IsAdjacentTo(_player.GridPosition, includeDiagonals: true);
+        }
+
+        private void ShowBanner(string text)
+        {
+            _bannerText = text;
+            _bannerRemaining = BannerSeconds;
+        }
+
+        // Day -> Night: builds the BFS distance field from the hearth, keeps the
+        // entry points that can actually reach it, and queues tonight's wave.
+        private void StartNight()
+        {
+            _pendingNightStart = false;
+
+            var paths = new HearthPathField(_hearth.Tiles, _map.IsWalkable, _map.Width, _map.Height);
+            Point[] entries = VillageCollisionLayout.EnemyEntryPoints
+                .Where(point => paths.IsReachable(point))
+                .ToArray();
+            if (entries.Length == 0)
+            {
+                Console.WriteLine("[Night] WARNING - no village entry point can reach the hearth; night not started.");
+                return;
+            }
+
+            _hearthPaths = paths;
+            _entryPoints = entries;
+            _nightNumber++;
+            _gameState = GameState.Night;
+            _spawner.QueueWave(_nightNumber);
+            ShowBanner($"NIGHT {_nightNumber} BEGINS");
+            Console.WriteLine(
+                $"[Night] Night {_nightNumber} begins: {_spawner.RemainingInWave} goblins queued, " +
+                $"{entries.Length} entry point(s).");
+        }
+
+        private void UpdateNight(float deltaSeconds)
+        {
+            List<Enemy> enemies = _enemies[WorldMapType.Village];
+
+            // Queue -> world: the spawner hands over the next goblin once its
+            // delay has run out.
+            EnemySpawnInfo? spawn = _spawner.Update(deltaSeconds);
+            if (spawn != null)
+            {
+                SpawnWaveEnemy(spawn, enemies);
+            }
+
+            foreach (Enemy enemy in enemies)
+            {
+                if (!enemy.IsWaveEnemy || !enemy.IsAlive || enemy.IsSliding || enemy.IsStunned)
+                {
+                    continue;
+                }
+
+                if (_hearth.IsAdjacentTo(enemy.GridPosition))
+                {
+                    if (enemy.TryStrike(HearthHitSeconds))
+                    {
+                        _hearth.TakeDamage(HearthHitDamage);
+                    }
+                    continue;
+                }
+
+                Point? next = _hearthPaths!.NextStep(enemy.GridPosition, tile => IsTileTakenForEnemy(tile, enemy));
+                if (next is Point step)
+                {
+                    enemy.MarchTo(step);
+                }
+            }
+
+            if (_hearth.IsDestroyed)
+            {
+                FailNight();
+                return;
+            }
+
+            if (_spawner.IsWaveComplete && !enemies.Any(enemy => enemy.IsWaveEnemy && enemy.IsAlive))
+            {
+                EndNight();
+            }
+        }
+
+        private void SpawnWaveEnemy(EnemySpawnInfo info, List<Enemy> enemies)
+        {
+            int start = Random.Shared.Next(_entryPoints.Length);
+            Point tile = _entryPoints[start];
+            for (int i = 0; i < _entryPoints.Length; i++)
+            {
+                Point candidate = _entryPoints[(start + i) % _entryPoints.Length];
+                if (candidate != _player.GridPosition &&
+                    !enemies.Any(enemy => enemy.IsAlive && enemy.GridPosition == candidate))
+                {
+                    tile = candidate;
+                    break;
+                }
+            }
+
+            enemies.Add(new Enemy(tile, TileSize, info.Health)
+            {
+                IsWaveEnemy = true,
+                MarchTilesPerSecond = info.Speed * MarchSpeedScale,
+            });
+        }
+
+        private bool IsTileTakenForEnemy(Point tile, Enemy self)
+        {
+            return tile == _player.GridPosition ||
+                   _enemies[WorldMapType.Village].Any(
+                       other => other != self && other.IsAlive && other.GridPosition == tile);
+        }
+
+        // Wave cleared: back to day, a new day is counted, and harvested trees
+        // and rocks grow back.
+        private void EndNight()
+        {
+            _gameState = GameState.Day;
+            _hearthPaths = null;
+            _dayCount++;
+            RestoreResourceNodesForNewDay();
+
+            if (_nightNumber >= MaxNights)
+            {
+                _allNightsSurvived = true;
+                ShowBanner("ALL NIGHTS SURVIVED");
+            }
+            else
+            {
+                ShowBanner($"DAWN OF DAY {_dayCount}");
+            }
+
+            Console.WriteLine($"[Night] Night {_nightNumber} cleared. Day {_dayCount} begins. Kills so far: {_kills}.");
+        }
+
+        // Placeholder until Milestone 4 adds the Defeat ending: the night is
+        // lost, the wave is cleared, the hearth is rebuilt, and the same night
+        // can be tried again.
+        private void FailNight()
+        {
+            _gameState = GameState.Day;
+            _hearthPaths = null;
+            _spawner.ClearWave();
+            _enemies[WorldMapType.Village].RemoveAll(enemy => enemy.IsWaveEnemy);
+            _hearth.RestoreFully();
+            _nightNumber--;
+            ShowBanner("THE HEARTH FELL");
+            Console.WriteLine("[Night] The hearth was destroyed. The night will be retried.");
+        }
+
+        private void RestoreResourceNodesForNewDay()
+        {
+            bool restoredAny = false;
+            foreach (TileMap map in _maps.Values)
+            {
+                restoredAny |= map.RestoreResourceNodes(tile =>
+                    (map == _map && tile == _player.GridPosition) ||
+                    _enemies[map.MapType].Any(enemy => enemy.IsAlive && enemy.GridPosition == tile));
+            }
+
+            if (restoredAny)
+            {
+                PrepareMapVisuals();
+            }
+        }
+
+        private int GoblinsRemaining()
+        {
+            return _spawner.RemainingInWave +
+                   _enemies[WorldMapType.Village].Count(enemy => enemy.IsWaveEnemy && enemy.IsAlive);
         }
 
         private void UpdateEnemies(GameTime gameTime)
@@ -459,6 +660,7 @@ namespace TileQuest
         protected override void Update(GameTime gameTime)
         {
             var keyboard = Keyboard.GetState();
+            _bannerRemaining = Math.Max(0f, _bannerRemaining - (float)gameTime.ElapsedGameTime.TotalSeconds);
             if (WasPressed(keyboard, Keys.F3))
             {
                 _showHitboxes = !_showHitboxes;
@@ -475,6 +677,17 @@ namespace TileQuest
                     _pendingTravel = null;
                 }
             }
+            else if (_pendingNightStart)
+            {
+                if (WasPressed(keyboard, Keys.Y) || WasPressed(keyboard, Keys.Enter))
+                {
+                    StartNight();
+                }
+                else if (WasPressed(keyboard, Keys.N) || WasPressed(keyboard, Keys.Escape))
+                {
+                    _pendingNightStart = false;
+                }
+            }
             else if (_openChest != null)
             {
                 UpdateChestMenu(keyboard);
@@ -488,6 +701,22 @@ namespace TileQuest
                 bool attackPressed = WasPressed(keyboard, Keys.Space) || WasPressed(keyboard, Keys.J);
                 bool interacted = WasPressed(keyboard, Keys.E) && TryOpenNearbyChest();
                 if (!interacted &&
+                    _gameState == GameState.Day &&
+                    WasPressed(keyboard, Keys.E) &&
+                    IsPlayerBesideHearth())
+                {
+                    if (_allNightsSurvived)
+                    {
+                        ShowBanner("THE VILLAGE IS SAFE");
+                    }
+                    else
+                    {
+                        _pendingNightStart = true;
+                    }
+                }
+
+                if (!interacted &&
+                    _gameState == GameState.Day &&
                     _map.MapType == WorldMapType.Village &&
                     WasPressed(keyboard, Keys.E) &&
                     IsPlayerBesideWizard())
@@ -501,6 +730,10 @@ namespace TileQuest
                 {
                     _player.Update(gameTime, _map, keyboard, attackPressed, IsEnemyAt);
                     UpdateEnemies(gameTime);
+                    if (_gameState == GameState.Night)
+                    {
+                        UpdateNight((float)gameTime.ElapsedGameTime.TotalSeconds);
+                    }
                 }
             }
 
@@ -519,7 +752,7 @@ namespace TileQuest
             if (_map.MapType == WorldMapType.Village)
             {
                 DrawVillageGround();
-                DrawVillageActors();
+                DrawVillageActors(gameTime);
                 DrawVillageObjectSlice(0, _villageObjectsTexture.Height);
             }
             else if (_map.MapType == WorldMapType.Dungeon)
@@ -568,7 +801,13 @@ namespace TileQuest
                 _spriteBatch.End();
             }
 
+            if (_gameState == GameState.Night && _map.MapType == WorldMapType.Village)
+            {
+                DrawNightOverlay(gameTime);
+            }
+
             DrawInventoryHud();
+            DrawDayNightHud();
 
             if (_openChest != null)
             {
@@ -580,7 +819,112 @@ namespace TileQuest
                 DrawTravelPrompt(travel);
             }
 
+            if (_pendingNightStart)
+            {
+                DrawNightPrompt();
+            }
+
             base.Draw(gameTime);
+        }
+
+        private VillageStructure HearthStructure =>
+            new(TileType.VillageHearth, _hearth.Position, _hearth.Size, _hearth.Size);
+
+        private void DrawHearthHealthBar()
+        {
+            if (_gameState != GameState.Night && _hearth.Health >= _hearth.MaxHealth)
+            {
+                return;
+            }
+
+            int barWidth = _hearth.Size * TileSize - 8;
+            int barX = _hearth.Position.X * TileSize + 4;
+            int barY = _hearth.Position.Y * TileSize - TileSize / 2 - 10;   // above the flame
+            int filled = (int)Math.Round(barWidth * (_hearth.Health / (float)_hearth.MaxHealth));
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(barX - 1, barY - 1, barWidth + 2, 7), Color.Black * 0.8f);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, barWidth, 5), new Color(90, 30, 20));
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, filled, 5), Color.Orange);
+        }
+
+        // Dims the village for the night, then redraws the hearth on top so the
+        // fire stays bright against the dark.
+        private void DrawNightOverlay(GameTime gameTime)
+        {
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, GraphicsDevice.Viewport.Bounds, new Color(6, 10, 38) * NightDimAlpha);
+            _spriteBatch.End();
+
+            _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
+            DrawVillageHearth(HearthStructure, _spriteBatch, gameTime);
+            DrawHearthHealthBar();
+            _spriteBatch.End();
+        }
+
+        // Top-centre status: day or night counter, wave progress, hearth HP, plus
+        // the "beside the hearth" hint and the fading event banner. Text uses
+        // only letters BitmapFont has (no J K M P Q X Z or punctuation but = ?).
+        private void DrawDayNightHud()
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            bool night = _gameState == GameState.Night;
+            string title = night ? $"NIGHT {_nightNumber} OF {MaxNights}" : $"DAY {_dayCount}";
+            string detail = night
+                ? $"GOBLINS LEFT {GoblinsRemaining()}  HEARTH {_hearth.Health}"
+                : $"NIGHTS SURVIVED {_dayCount - 1} OF {MaxNights}";
+
+            const int panelWidth = 360;
+            const int panelHeight = 58;
+            int panelX = (viewport.Width - panelWidth) / 2;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(panelX, 10, panelWidth, panelHeight));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(panelX + 14, 18), 2,
+                night ? Color.Orange : Color.Wheat);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, detail, new Point(panelX + 14, 42), 2, Color.White);
+
+            if (!night && !_allNightsSurvived && !_pendingNightStart && _pendingTravel == null &&
+                _openChest == null && IsPlayerBesideHearth())
+            {
+                const string hint = "READY TO DEFEND THE HEARTH?  E=YES";
+                int hintWidth = hint.Length * 12 + 20;
+                int hintX = (viewport.Width - hintWidth) / 2;
+                int hintY = viewport.Height - 52;
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(hintX, hintY, hintWidth, 30), new Color(18, 15, 14, 225));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, hint, new Point(hintX + 10, hintY + 8), 2, Color.Gold);
+            }
+
+            if (_bannerRemaining > 0f)
+            {
+                float alpha = Math.Clamp(_bannerRemaining / 0.8f, 0f, 1f);
+                const int bannerScale = 3;
+                int bannerX = (viewport.Width - _bannerText.Length * 6 * bannerScale) / 2;
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, _bannerText, new Point(bannerX + 3, 87), bannerScale, Color.Black * (0.8f * alpha));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, _bannerText, new Point(bannerX, 84), bannerScale, Color.Gold * alpha);
+            }
+
+            _spriteBatch.End();
+        }
+
+        private void DrawNightPrompt()
+        {
+            const int boxWidth = 340;
+            const int boxHeight = 78;
+            int x = (_graphics.PreferredBackBufferWidth - boxWidth) / 2;
+            int y = _graphics.PreferredBackBufferHeight - boxHeight - 18;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(x, y, boxWidth, boxHeight), new Color(18, 24, 32, 235));
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(x, y, boxWidth, 2), Color.Orange);
+            _spriteBatch.Draw(_pixelTexture, new Rectangle(x, y + boxHeight - 2, boxWidth, 2), Color.Orange);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "LIGHT THE HEARTH?", new Point(x + 18, y + 12), 2, Color.White);
+            BitmapFont.Draw(
+                _spriteBatch,
+                _pixelTexture,
+                $"NIGHT {_nightNumber + 1} OF {MaxNights}  Y=YES N=NO",
+                new Point(x + 18, y + 48),
+                2,
+                Color.White);
+            _spriteBatch.End();
         }
 
         private void DrawInventoryHud()
@@ -981,7 +1325,7 @@ namespace TileQuest
             _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
         }
 
-        private void DrawVillageActors()
+        private void DrawVillageActors(GameTime gameTime)
         {
             var actors = new List<(int BaseY, Action Draw)>();
 
@@ -989,6 +1333,12 @@ namespace TileQuest
             {
                 actors.Add(((int)enemy.PixelPosition.Y + TileSize, () => DrawEnemy(enemy)));
             }
+
+            actors.Add(((_hearth.Position.Y + _hearth.Size) * TileSize, () =>
+            {
+                DrawVillageHearth(HearthStructure, _spriteBatch, gameTime);
+                DrawHearthHealthBar();
+            }));
 
             Point wizardPosition = VillageCollisionLayout.WizardPosition;
             actors.Add(((wizardPosition.Y + 1) * TileSize, DrawWizard));
@@ -1365,15 +1715,31 @@ namespace TileQuest
 
         private void DrawVillageHearth(VillageStructure hearth, SpriteBatch spriteBatch, GameTime gameTime)
         {
-            int frame = (int)(gameTime.TotalGameTime.TotalSeconds * BonfireFramesPerSecond) % BonfireFrameCount;
-            var source = new Rectangle(frame * BonfireFrameSize, 0, BonfireFrameSize, BonfireFrameSize);
-            var destination = new Rectangle(
-                hearth.Position.X * TileSize,
-                hearth.Position.Y * TileSize,
-                hearth.Width * TileSize,
-                hearth.Height * TileSize);
-            spriteBatch.Draw(_bonfireTexture, destination, source, Color.White);
+            int platformSourceX = 352;
+            int platformSourceY = 174;
+            int platformSourceWidth = 32;
+            int platformSourceHeight = 76;
+            int platformDrawWidth = hearth.Width * TileSize;
+            int platformDrawHeight = TileSize + 12;
+            int platformX = hearth.Position.X * TileSize + (hearth.Width * TileSize - platformDrawWidth) / 2;
+            int platformY = hearth.Position.Y * TileSize + hearth.Height * TileSize - platformDrawHeight;
+            var platformDestination = new Rectangle(platformX, platformY, platformDrawWidth, platformDrawHeight);
+            var platformSource = new Rectangle(platformSourceX, platformSourceY, platformSourceWidth, platformSourceHeight);
+            spriteBatch.Draw(_txPropsTexture, platformDestination, platformSource, Color.White);
 
+            int statueSourceX = 288;
+            int statueSourceY = 87;
+            int statueSourceWidth = 64;
+            int statueSourceHeight = 36;
+            int statueDrawWidth = hearth.Width * TileSize * 3 / 4;
+            int statueDrawHeight = statueDrawWidth * statueSourceHeight / statueSourceWidth;
+            int statueX = hearth.Position.X * TileSize + (hearth.Width * TileSize - statueDrawWidth) / 2;
+            int statueY = platformY - statueDrawHeight + 4;
+            var statueDestination = new Rectangle(statueX, statueY, statueDrawWidth, statueDrawHeight);
+            var statueSource = new Rectangle(statueSourceX, statueSourceY, statueSourceWidth, statueSourceHeight);
+            spriteBatch.Draw(_txPropsTexture, statueDestination, statueSource, Color.White);
+
+            int frame = (int)(gameTime.TotalGameTime.TotalSeconds * BonfireFramesPerSecond) % BonfireFrameCount;
             var flameSource = new Rectangle(
                 frame * BonfireFlameFrameWidth,
                 0,
@@ -1383,8 +1749,8 @@ namespace TileQuest
             int flameWidth = footprintWidth * 3 / 4;
             int flameHeight = flameWidth * BonfireFlameFrameHeight / BonfireFlameFrameWidth;
             var flameDestination = new Rectangle(
-                destination.X + (footprintWidth - flameWidth) / 2,
-                destination.Y - TileSize / 2,
+                platformX + (footprintWidth - flameWidth) / 2,
+                platformY - TileSize / 2,
                 flameWidth,
                 flameHeight);
             spriteBatch.Draw(_bonfireFlameTexture, flameDestination, flameSource, Color.White);

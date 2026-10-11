@@ -19,19 +19,19 @@ TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms 
 
 | Topic | Module | Current use |
 | :--- | :--- | :--- |
-| Queue | `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Standalone FIFO spawn-sequence module; not wired to live enemy spawning |
+| Queue | `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Feeds the night wave: goblins dequeue in order and spawn at the village edge |
 | Stack | `ActionHistory.cs`, `PlayerAction.cs` | Standalone LIFO action-history module; no in-game undo |
 | Linked list | `Inventory.cs`, `Item.cs` | Standalone inventory structure; no resource gathering or inventory HUD |
 | Binary search | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Standalone sorted recipe lookup |
 | Insertion sort | `InsertionSortUtil.cs` | Standalone descending sort utility |
-| Graph / BFS | `TileGraph.cs` | Used for map walkability connectivity checks at startup |
+| Graph / BFS | `TileGraph.cs` | Startup connectivity checks, plus `HearthPathField`, the BFS distance field goblins follow to the hearth |
 
 ## Not Yet Implemented
 
 - Resource gathering, crafting, and player-facing inventory.
 - Dungeon puzzles or other player-facing binary-search gameplay.
-- Moving or attacking enemies, waves, player health, and boss encounters.
-- Day/night progression, story endings, and high scores.
+- Player health, enemies that attack the player, and boss encounters.
+- Story endings and high scores (nights 1-5 play, but there is no victory/defeat screen yet).
 
 ## Building and Running
 

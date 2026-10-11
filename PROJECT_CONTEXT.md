@@ -18,12 +18,13 @@
 - Travel from the village is requested with `E` while next to the wizard. Stepping on a travel tile requests the corresponding map transition. Confirm with `Y` or `Enter`; cancel with `N` or `Escape`. Prompts are drawn at the bottom center.
 - Movement is four-directional, grid-locked, smoothly interpolated, and collision checked. The camera follows the player.
 - `Space` or `J` performs a melee swing. Training enemies are stationary targets around map spawn points; they can be damaged, knocked back, and defeated, but do not pursue or attack.
+- Day/night: beside the village hearth (2×2 bonfire on the central plaza, top-left tile `(24, 20)`, blocked for movement), `E` then `Y`/`Enter` starts the next night (of 5). `WaveSpawner` dequeues goblins on its timer at `VillageCollisionLayout.EnemyEntryPoints`; they follow a BFS distance field (`HearthPathField`) to the hearth and strike it (`Hearth`, 100 HP, persists between nights). Clearing the wave returns to day, advances the day count, and regrows harvested nodes. If the hearth is destroyed the night is cleared and retried (placeholder until the Milestone 4 Defeat ending). A top-centre HUD shows day/night, goblins left, and hearth HP. Goblins do not attack the player, and the village wizard is disabled at night.
 - A screen-space HUD shows red health and blue energy bars at the lower left and a 4 × 2, Minecraft-style inventory grid at the lower right. The bars are currently visual-only; player health and energy mechanics are not implemented.
 - `F3` toggles the hitbox/debug overlay.
 - Startup runs `TileGraph` connectivity checks and `DsaDemo` self-checks.
 - Queue, stack, linked-list inventory, binary-search, and insertion-sort code exists as standalone DSA modules; undo, crafting, and a player-facing puzzle are not implemented.
 
-Do not describe enemy AI/waves, resource gathering, player health, dungeon puzzles, day/night progression, bosses, endings, or high scores as shipped unless later code changes implement them.
+Do not describe resource gathering, player health, dungeon puzzles, bosses, endings, or high scores as shipped unless later code changes implement them.
 
 ## Important code map
 
@@ -41,7 +42,8 @@ Do not describe enemy AI/waves, resource gathering, player health, dungeon puzzl
 | `ForestGenerator.cs` | Builds the forest collision tiles from `ForestLayout.Rows` |
 | `TileGraph.cs` | Walkable adjacency graph and breadth-first connectivity |
 | `DsaDemo.cs` | Startup checks for the DSA modules |
-| `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Standalone timed FIFO enemy-spawn module |
+| `WaveSpawner.cs`, `EnemySpawnInfo.cs` | Timed FIFO enemy-spawn queue; drives the night wave in `Game1` |
+| `GameState.cs`, `Hearth.cs`, `HearthPathField.cs` | Day/Night state, hearth HP/footprint, and the BFS distance field goblins follow |
 | `ActionHistory.cs`, `PlayerAction.cs` | Standalone LIFO undo-history module |
 | `Inventory.cs`, `Item.cs` | Standalone linked-list inventory and sorted snapshot |
 | `BinarySearchUtil.cs`, `CraftingRecipe.cs` | Binary-search utility and recipe sample |
