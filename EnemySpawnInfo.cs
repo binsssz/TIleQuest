@@ -5,17 +5,30 @@ namespace TileQuest
     // that night (scaled up as nights progress).
     public class EnemySpawnInfo
     {
-        public string EnemyType { get; }
+        public EnemyKind Kind { get; }
+        public SkeletonVariant Variant { get; }
         public float SpawnDelaySeconds { get; }
         public int Health { get; }
         public float Speed { get; }
+        public int HearthDamage { get; }
 
-        public EnemySpawnInfo(string enemyType, float spawnDelaySeconds, int health, float speed)
+        // Readable name for logs and the startup self-check.
+        public string EnemyType => Kind == EnemyKind.Skeleton ? $"Skeleton ({Variant})" : "Goblin";
+
+        public EnemySpawnInfo(
+            EnemyKind kind,
+            SkeletonVariant variant,
+            float spawnDelaySeconds,
+            int health,
+            float speed,
+            int hearthDamage)
         {
-            EnemyType = enemyType;
+            Kind = kind;
+            Variant = variant;
             SpawnDelaySeconds = spawnDelaySeconds;
             Health = health;
             Speed = speed;
+            HearthDamage = hearthDamage;
         }
     }
 }

@@ -63,17 +63,17 @@ namespace TileQuest
         private KeyboardState _previousKeyboard;
 
         // Night defense. Day: explore, gather, craft. Night: light the village
-        // hearth and defend it from a queued wave of goblins (FIFO WaveSpawner).
+        // hearth and defend it from a queued wave of goblins and skeletons
+        // (FIFO WaveSpawner). Each enemy's strike damage comes from its spawn info.
         private const int MaxNights = 5;
-        private const int HearthHitDamage = 3;           // per goblin strike
-        private const float HearthHitSeconds = 1.2f;     // between one goblin's strikes
+        private const float HearthHitSeconds = 1.2f;     // between one enemy's strikes
         private const float MarchSpeedScale = 2f;        // EnemySpawnInfo.Speed -> tiles per second
         private const float NightDimAlpha = 0.5f;
         private const float BannerSeconds = 3f;
         private GameState _gameState = GameState.Day;
         private int _dayCount = 1;
         private int _nightNumber;                        // 0 until the first night starts
-        private int _kills;                              // wave goblins defeated (Milestone 4 score)
+        private int _kills;                              // wave enemies defeated (Milestone 4 score)
         private bool _allNightsSurvived;
         private bool _pendingNightStart;
         private string _bannerText = string.Empty;
@@ -93,6 +93,15 @@ namespace TileQuest
         private Texture2D _enemyTexture = null!;
         private Texture2D _enemyHandsTexture = null!;
         private Texture2D _enemyRunTexture = null!;
+
+        // Skeleton sprite sets, indexed by (int)SkeletonVariant. They share the
+        // orc's layout: Idle is 4 frames of 32x32, Run is 6 frames of 64x64.
+        private static readonly string[] SkeletonFolders =
+        {
+            "Skeleton - Base", "Skeleton - Warrior", "Skeleton - Rogue", "Skeleton - Mage",
+        };
+        private readonly Texture2D[] _skeletonIdleTextures = new Texture2D[SkeletonFolders.Length];
+        private readonly Texture2D[] _skeletonRunTextures = new Texture2D[SkeletonFolders.Length];
         private const int SwingDamage = 5;
         private bool _traderOpen;
         private int _traderSelection;
@@ -134,6 +143,15 @@ namespace TileQuest
         // hands move down with it. One entry per idle frame.
         private static readonly int[] GoblinBodyBobY = { 0, 2, 2, 1 };
         private const int MaxTrainingEnemiesPerMap = 4;
+
+        // The dungeon is packed with stationary skeleton targets. Placement is a
+        // seeded shuffle of the floor tiles (same layout every run), keeping each
+        // skeleton at least DungeonSkeletonSpacing tiles from the others and more
+        // than DungeonSkeletonSafeRadius tiles from the arrival point.
+        private const int DungeonSkeletonCount = 32;
+        private const int DungeonSkeletonSpacing = 2;
+        private const int DungeonSkeletonSafeRadius = 4;
+        private const int DungeonSkeletonSeed = 7;
         private static readonly Point[] TrainingEnemyOffsets =
         {
             new(2, 0), new(3, 2), new(5, -1), new(-4, 1), new(-3, -1), new(6, 1), new(2, 1), new(-5, -1),
@@ -243,6 +261,12 @@ namespace TileQuest
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
             _enemyRunTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png");
+            for (int i = 0; i < SkeletonFolders.Length; i++)
+            {
+                string folder = $"Entities/Mobs/Skeleton Crew/{SkeletonFolders[i]}";
+                _skeletonIdleTextures[i] = LoadTexture($"{folder}/Idle/Idle-Sheet.png");
+                _skeletonRunTextures[i] = LoadTexture($"{folder}/Run/Run-Sheet.png");
+            }
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
             _txPropsTexture = LoadTexture("TX Props.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
@@ -274,6 +298,7 @@ namespace TileQuest
 
             // After the forest trunk tiles are set, so enemies never spawn on one.
             SpawnTrainingEnemies();
+            SpawnDungeonSkeletons();
         }
 
         // Direct-load, no Content Pipeline: reads PNG bytes straight from the
@@ -407,6 +432,72 @@ namespace TileQuest
             }
         }
 
+        // Fills the dungeon with stationary skeleton targets (all four variants,
+        // in rotation). Candidate tiles are every floor tile that is not a travel
+        // tile, not near the arrival point, and not in front of a chest; they are
+        // shuffled with a fixed seed and picked greedily with a minimum spacing,
+        // so a corridor or doorway can never be walled off.
+        private void SpawnDungeonSkeletons()
+        {
+            TileMap dungeon = _maps[WorldMapType.Dungeon];
+            List<Enemy> enemies = _enemies[WorldMapType.Dungeon];
+            var variants = (SkeletonVariant[])Enum.GetValues(typeof(SkeletonVariant));
+
+            var candidates = new List<Point>();
+            for (int y = 0; y < dungeon.Height; y++)
+            {
+                for (int x = 0; x < dungeon.Width; x++)
+                {
+                    var tile = new Point(x, y);
+                    if (dungeon.IsWalkable(tile) &&
+                        !dungeon.TryGetTravel(tile, out _) &&
+                        ChebyshevDistance(tile, dungeon.SpawnPoint) > DungeonSkeletonSafeRadius &&
+                        !_dungeonChests.Any(chest => chest.Tiles.Any(chestTile => ChebyshevDistance(tile, chestTile) <= 1)) &&
+                        !enemies.Any(enemy => enemy.GridPosition == tile))
+                    {
+                        candidates.Add(tile);
+                    }
+                }
+            }
+
+            var random = new Random(DungeonSkeletonSeed);
+            for (int i = candidates.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+            }
+
+            int placed = 0;
+            foreach (Point tile in candidates)
+            {
+                if (placed >= DungeonSkeletonCount)
+                {
+                    break;
+                }
+
+                if (enemies.Any(enemy => ChebyshevDistance(enemy.GridPosition, tile) < DungeonSkeletonSpacing))
+                {
+                    continue;
+                }
+
+                SkeletonVariant variant = variants[placed % variants.Length];
+                int health = (int)Math.Round(EnemyMaxHealth * SkeletonStats.HealthScale(variant));
+                enemies.Add(new Enemy(tile, TileSize, health)
+                {
+                    Kind = EnemyKind.Skeleton,
+                    Variant = variant,
+                });
+                placed++;
+            }
+
+            Console.WriteLine($"[Dungeon] Placed {placed} skeleton(s) (target {DungeonSkeletonCount}).");
+        }
+
+        private static int ChebyshevDistance(Point a, Point b)
+        {
+            return Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+        }
+
         private bool IsEnemyAt(Point tile)
         {
             return _enemies[_map.MapType].Any(enemy => enemy.IsAlive && enemy.GridPosition == tile);
@@ -498,7 +589,7 @@ namespace TileQuest
             _spawner.QueueWave(_nightNumber);
             ShowBanner($"NIGHT {_nightNumber} BEGINS");
             Console.WriteLine(
-                $"[Night] Night {_nightNumber} begins: {_spawner.RemainingInWave} goblins queued, " +
+                $"[Night] Night {_nightNumber} begins: {_spawner.RemainingInWave} enemies queued, " +
                 $"{entries.Length} entry point(s).");
         }
 
@@ -526,7 +617,7 @@ namespace TileQuest
                     enemy.FaceToward(_hearth.Position.X + (_hearth.Size - 1) / 2f);
                     if (enemy.TryStrike(HearthHitSeconds))
                     {
-                        _hearth.TakeDamage(HearthHitDamage);
+                        _hearth.TakeDamage(enemy.HearthDamage);
                     }
                     continue;
                 }
@@ -563,6 +654,9 @@ namespace TileQuest
                     enemies.Add(new Enemy(candidate, TileSize, info.Health)
                     {
                         IsWaveEnemy = true,
+                        Kind = info.Kind,
+                        Variant = info.Variant,
+                        HearthDamage = info.HearthDamage,
                         MarchTilesPerSecond = info.Speed * MarchSpeedScale,
                     });
                     return true;
@@ -634,7 +728,7 @@ namespace TileQuest
             }
         }
 
-        private int GoblinsRemaining()
+        private int FoesRemaining()
         {
             return _spawner.RemainingInWave +
                    (_pendingWaveSpawn == null ? 0 : 1) +
@@ -1178,7 +1272,7 @@ namespace TileQuest
             bool night = _gameState == GameState.Night;
             string title = night ? $"NIGHT {_nightNumber} OF {MaxNights}" : $"DAY {_dayCount}";
             string detail = night
-                ? $"GOBLINS LEFT {GoblinsRemaining()}  HEARTH {_hearth.Health}"
+                ? $"FOES LEFT {FoesRemaining()}  HEARTH {_hearth.Health}"
                 : $"NIGHTS SURVIVED {_dayCount - 1} OF {MaxNights}";
 
             const int panelWidth = 360;
@@ -2364,11 +2458,18 @@ namespace TileQuest
             Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
             tint *= enemy.DeathFade;
 
+            // Skeletons and goblins share the same sheet layout and body size, so
+            // only the textures differ. Skeletons have arms in the sprite; the
+            // goblin's hands are separate sprites drawn on top.
+            bool skeleton = enemy.Kind == EnemyKind.Skeleton;
+            Texture2D idleTexture = skeleton ? _skeletonIdleTextures[(int)enemy.Variant] : _enemyTexture;
+            Texture2D runTexture = skeleton ? _skeletonRunTextures[(int)enemy.Variant] : _enemyRunTexture;
+
             if (enemy.IsRunning)
             {
-                // Marching goblins use the run cycle. Its cells are 64x64 with
-                // the orc low and centred, so it is scaled like the idle sprite
-                // (same orc size) and bottom-centred on the tile.
+                // Marching enemies use the run cycle. Its cells are 64x64 with
+                // the body low and centred, so it is scaled like the idle sprite
+                // (same size) and bottom-centred on the tile.
                 int runFrame = (int)(enemy.AnimationTime * enemy.MarchTilesPerSecond * EnemyRunFramesPerTile)
                                % EnemyRunFrameCount;
                 var runSource = new Rectangle(runFrame * EnemyRunCellSize, 0, EnemyRunCellSize, EnemyRunCellSize);
@@ -2376,7 +2477,7 @@ namespace TileQuest
                 int runX = (int)enemy.PixelPosition.X + (TileSize - runSize) / 2;
                 int runY = (int)enemy.PixelPosition.Y + TileSize - runSize;
                 _spriteBatch.Draw(
-                    _enemyRunTexture,
+                    runTexture,
                     new Rectangle(runX, runY, runSize, runSize),
                     runSource,
                     tint,
@@ -2395,9 +2496,13 @@ namespace TileQuest
 
                 // The back hand is drawn first so the body covers part of it; the
                 // front hand goes on top. Facing left swaps which side each is on.
-                DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip);
+                if (!skeleton)
+                {
+                    DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip);
+                }
+
                 _spriteBatch.Draw(
-                    _enemyTexture,
+                    idleTexture,
                     new Rectangle(x, y, size, size),
                     source,
                     tint,
@@ -2405,7 +2510,11 @@ namespace TileQuest
                     Vector2.Zero,
                     effects,
                     0f);
-                DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip);
+
+                if (!skeleton)
+                {
+                    DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip);
+                }
             }
 
             if (enemy.IsAlive && enemy.Health < enemy.MaxHealth)

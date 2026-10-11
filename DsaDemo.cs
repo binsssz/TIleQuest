@@ -46,18 +46,36 @@ namespace TileQuest
             Check($"night 1 queues {expected} enemies", spawner.RemainingInWave == expected);
 
             int spawned = 0;
-            if (spawner.Update(0f) != null)
+            int goblins = 0;
+            int skeletons = 0;
+            void Tally(EnemySpawnInfo info)
+            {
+                if (info.Kind == EnemyKind.Skeleton)
+                {
+                    skeletons++;
+                }
+                else
+                {
+                    goblins++;
+                }
+            }
+
+            EnemySpawnInfo? first = spawner.Update(0f);
+            if (first != null)
             {
                 spawned++;
+                Tally(first);
             }
             Check("first enemy spawns immediately", spawned == 1 && spawner.RemainingInWave == expected - 1);
 
             bool waitedForDelay = spawner.Update(1f) == null && spawner.Update(0.49f) == null;
             Check("next enemy waits for its 1.5 second delay", waitedForDelay);
 
-            if (spawner.Update(0.02f) != null)
+            EnemySpawnInfo? second = spawner.Update(0.02f);
+            if (second != null)
             {
                 spawned++;
+                Tally(second);
             }
             Check("next enemy spawns after the delay", spawned == 2 && spawner.RemainingInWave == expected - 2);
 
@@ -69,10 +87,12 @@ namespace TileQuest
                 if (enemy != null)
                 {
                     spawned++;
+                    Tally(enemy);
                     Console.WriteLine($"    spawn #{spawned}: {enemy.EnemyType} (HP {enemy.Health}, speed {enemy.Speed:0.0})");
                 }
             }
             Check("every queued enemy spawned, then the wave is complete", spawned == expected && spawner.IsWaveComplete);
+            Check($"night 1 mixes goblins and skeletons ({goblins} + {skeletons})", goblins > 0 && skeletons > 0);
 
             spawner.QueueWave(nightNumber: 3);
             Check("later nights are bigger (night 3 > night 1)", spawner.RemainingInWave > expected);

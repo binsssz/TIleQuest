@@ -39,8 +39,17 @@ namespace TileQuest
 
         public bool IsAlive => Health > 0;
 
-        // True for goblins spawned by the night wave (not training dummies).
+        // True for enemies spawned by the night wave (not training dummies).
         public bool IsWaveEnemy { get; init; }
+
+        // Which monster this is; the renderer picks sprites from it.
+        public EnemyKind Kind { get; init; } = EnemyKind.Goblin;
+
+        // Only meaningful for skeletons: which of the four sprite sets to use.
+        public SkeletonVariant Variant { get; init; } = SkeletonVariant.Base;
+
+        // Damage dealt to the hearth by each strike.
+        public int HearthDamage { get; init; } = 3;
 
         // How fast a wave enemy walks, in tiles per second.
         public float MarchTilesPerSecond { get; init; } = 2f;
@@ -101,12 +110,18 @@ namespace TileQuest
             // tile give the same loot every time).
             Random random = Random.Shared;
 
-            if (random.NextDouble() < 0.65)
+            // Skeletons are mostly bone: they almost always drop one and
+            // carry a little less gold than a goblin.
+            bool skeleton = Kind == EnemyKind.Skeleton;
+            double boneChance = skeleton ? 0.9 : 0.65;
+            double goldChance = skeleton ? 0.25 : 0.35;
+
+            if (random.NextDouble() < boneChance)
             {
                 yield return new Item("Bone", "Loot", 1, 3);
             }
 
-            if (random.NextDouble() < 0.35)
+            if (random.NextDouble() < goldChance)
             {
                 yield return new Item("Gold", "Resource", 1, 8);
             }

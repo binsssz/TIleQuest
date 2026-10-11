@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace TileQuest
@@ -14,22 +15,78 @@ namespace TileQuest
         public int RemainingInWave => _pendingSpawns.Count;
         public bool IsWaveComplete => _pendingSpawns.Count == 0;
 
-        // Builds and enqueues the night's wave. Enemy count, health, and
-        // speed all scale with nightNumber so later nights are harder.
+        private const float SpawnDelaySeconds = 1.5f;
+
+        // Builds and enqueues the night's wave: a mix of goblins and skeletons,
+        // interleaved so both kinds arrive throughout the night. Enemy count,
+        // health, and speed all scale with nightNumber so later nights are
+        // harder, and skeletons make up a growing share of the wave.
         public void QueueWave(int nightNumber)
         {
             _pendingSpawns.Clear();
 
             int enemyCount = 3 + nightNumber * 2;
-            int health = 10 + nightNumber * 5;
-            float speed = 1.0f + nightNumber * 0.1f;
+            int skeletonCount = SkeletonCountFor(nightNumber, enemyCount);
+            SkeletonVariant[] variants = VariantsForNight(nightNumber);
 
+            int skeletonsQueued = 0;
             for (int i = 0; i < enemyCount; i++)
             {
-                _pendingSpawns.Enqueue(new EnemySpawnInfo("Goblin", spawnDelaySeconds: 1.5f, health, speed));
+                // Spreads the skeletons evenly through the queue. The first
+                // enemy of every night is a goblin.
+                bool nextIsSkeleton = (i + 1) * skeletonCount / enemyCount > skeletonsQueued;
+                if (nextIsSkeleton)
+                {
+                    SkeletonVariant variant = variants[skeletonsQueued % variants.Length];
+                    skeletonsQueued++;
+                    _pendingSpawns.Enqueue(CreateSkeleton(nightNumber, variant));
+                }
+                else
+                {
+                    _pendingSpawns.Enqueue(CreateGoblin(nightNumber));
+                }
             }
 
             _timeUntilNextSpawn = 0f;
+        }
+
+        // Skeleton share of the wave: 30% on night 1, +10% each night, capped at
+        // 70%. Always at least one skeleton and at least one goblin.
+        private static int SkeletonCountFor(int nightNumber, int enemyCount)
+        {
+            int sharePercent = Math.Min(30 + 10 * (nightNumber - 1), 70);
+            int count = (enemyCount * sharePercent + 50) / 100;   // rounded to nearest
+            return Math.Clamp(count, 1, enemyCount - 1);
+        }
+
+        // New skeleton types join the wave as the nights go on.
+        private static SkeletonVariant[] VariantsForNight(int nightNumber)
+        {
+            return nightNumber switch
+            {
+                <= 1 => new[] { SkeletonVariant.Base },
+                2 => new[] { SkeletonVariant.Base, SkeletonVariant.Warrior },
+                3 => new[] { SkeletonVariant.Base, SkeletonVariant.Warrior, SkeletonVariant.Rogue },
+                _ => new[] { SkeletonVariant.Base, SkeletonVariant.Warrior, SkeletonVariant.Rogue, SkeletonVariant.Mage },
+            };
+        }
+
+        private static EnemySpawnInfo CreateGoblin(int nightNumber)
+        {
+            int health = 10 + nightNumber * 5;
+            float speed = 1.0f + nightNumber * 0.1f;
+            return new EnemySpawnInfo(
+                EnemyKind.Goblin, SkeletonVariant.Base, SpawnDelaySeconds, health, speed, hearthDamage: 3);
+        }
+
+        // Skeletons start a little tougher and slower than goblins; the variant
+        // then nudges both (see SkeletonStats).
+        private static EnemySpawnInfo CreateSkeleton(int nightNumber, SkeletonVariant variant)
+        {
+            int health = (int)Math.Round((12 + nightNumber * 5) * SkeletonStats.HealthScale(variant));
+            float speed = (0.9f + nightNumber * 0.1f) * SkeletonStats.SpeedScale(variant);
+            return new EnemySpawnInfo(
+                EnemyKind.Skeleton, variant, SpawnDelaySeconds, health, speed, SkeletonStats.HearthDamage(variant));
         }
 
         // Drops whatever is still queued (a night that ended early).
