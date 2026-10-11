@@ -47,7 +47,7 @@ namespace TileQuest
 
         public static ForestTmxMap Load()
         {
-            using Stream stream = TitleContainer.OpenStream("Content/forestmap.tmx");
+            using Stream stream = TitleContainer.OpenStream("Assets/forestmap.tmx");
             XDocument document = XDocument.Load(stream);
             XElement map = document.Root
                 ?? throw new InvalidDataException("The forest TMX file has no map root element.");

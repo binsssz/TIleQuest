@@ -112,7 +112,7 @@ namespace TileQuest
             return variants[(hash & 0x7fffffff) % variants.Length];
         }
 
-        // Path under Content/ (the .csproj copies every PNG there).
+        // Path under Assets/ (the .csproj copies every PNG there).
         public static string FileFor(PropSheet sheet)
         {
             return sheet switch

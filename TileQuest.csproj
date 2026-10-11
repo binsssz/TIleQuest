@@ -14,13 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Direct-load sprites: no Content.mgcb / MonoGame.Content.Builder.Task
-         needed. These PNGs just get copied next to the .exe so Game1 can
-         open them at runtime with TitleContainer.OpenStream. -->
-    <None Update="Content\**\*.png">
+    <!-- Direct-load sprites: no MonoGame content pipeline needed. These
+         assets are copied beside the executable for TitleContainer.OpenStream. -->
+    <None Update="Assets\**\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Content\forestmap.tmx">
+    <None Update="Assets\forestmap.tmx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -71,7 +71,7 @@ namespace TileQuest
         // ------------------------------------------------------------------
         //  HAND-PAINTED SPRITES
         //
-        //  Drop a PNG under Content/ (e.g. Content/Environment/Forest/foothill.png),
+        //  Drop a PNG under Assets/ (e.g. Assets/Environment/Forest/foothill.png),
         //  list it in Sprites, and it is drawn at that tile. Paint at native 16 px
         //  scale (the game draws it 2x), canvas a multiple of 16, transparent
         //  background. A file that does not exist yet is skipped, so you can list

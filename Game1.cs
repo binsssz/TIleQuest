@@ -17,7 +17,7 @@ namespace TileQuest
 
         // Real sprite textures, direct-loaded (no Content Pipeline/mgcb tool
         // needed — see LoadTexture below and the .csproj's
-        // CopyToOutputDirectory entry for Content/**/*.png).
+        // CopyToOutputDirectory entry for Assets/**/*.png).
         private Texture2D _floorTilesTexture = null!;
         private Texture2D _villageGroundTexture = null!;
         private Texture2D _villageObjectsGroundTexture = null!;
@@ -265,7 +265,7 @@ namespace TileQuest
         // TitleContainer, which works the same on Windows/macOS/Linux.
         private Texture2D LoadTexture(string fileName)
         {
-            using Stream stream = TitleContainer.OpenStream($"Content/{fileName}");
+            using Stream stream = TitleContainer.OpenStream($"Assets/{fileName}");
             return Texture2D.FromStream(GraphicsDevice, stream);
         }
 
