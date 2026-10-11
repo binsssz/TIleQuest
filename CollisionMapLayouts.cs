@@ -9,11 +9,12 @@ namespace TileQuest
         public static readonly Point SpawnPoint = new(22, 30);
         public static readonly Point WizardPosition = new(23, 30);
 
-        // Night defense. The hearth is a 2x2 bonfire on the central plaza (its
-        // top-left tile); TileMap blocks those tiles. Goblins walk in from the
+        // Night defense. The hearth is a statue on a round platform on the central
+        // plaza; HearthTile is the top-left tile of the statue's 2x2 base and
+        // TileMap blocks those tiles. Goblins walk in from the
         // village edge at these points - edit freely, TileMap/Game1 drop any
         // that are blocked or cannot reach the hearth.
-        public static readonly Point HearthTile = new(24, 20);
+        public static readonly Point HearthTile = new(24, 19);
         public const int HearthSize = 2;
         public static readonly Point[] EnemyEntryPoints =
         {

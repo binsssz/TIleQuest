@@ -158,7 +158,7 @@ namespace TileQuest
                     VillageCollisionLayout.Rows, width, height, nameof(VillageCollisionLayout));
                 SpawnPoint = VillageCollisionLayout.SpawnPoint;
                 VillageStructures = Array.Empty<VillageStructure>();
-                // The hearth is solid: nobody walks through the bonfire.
+                // The hearth is solid: nobody walks through the statue.
                 for (int dy = 0; dy < VillageCollisionLayout.HearthSize; dy++)
                 {
                     for (int dx = 0; dx < VillageCollisionLayout.HearthSize; dx++)

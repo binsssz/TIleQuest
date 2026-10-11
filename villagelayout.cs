@@ -29,7 +29,8 @@ namespace TileQuest
     //    C   church           solid lower walls block; roof can be walked behind
     //    1   house, type 1    solid lower walls block; roof can be walked behind
     //    2   house, type 2    walls block; side section has its own hitbox
-    //    H   animated bonfire BLOCKED 2x2 footprint; stone under both tiles
+    //    H   village hearth   BLOCKED 2x2 footprint (the statue's base); the round
+    //                         platform it stands on is drawn flat and is walkable
     //    W   village well     BLOCKED footprint, 2 wide x 2 tall (the sprite is 3
     //                         tall, so its roof overhangs the row above)
     //

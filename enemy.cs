@@ -16,6 +16,7 @@ namespace TileQuest
         private const float FirstStrikeDelaySeconds = 0.5f;
         private const float HitFlashSeconds = 0.15f;
         private const float DeathFadeSeconds = 0.35f;
+        private const float RunLingerSeconds = 0.12f;   // bridges the one-frame gap between two march steps
 
         private readonly int _tileSize;
         private Vector2 _targetPixelPosition;
@@ -23,6 +24,8 @@ namespace TileQuest
         private float _slideTilesPerSecond = KnockbackTilesPerSecond;
         private float _stunRemaining;
         private float _attackCooldownRemaining = FirstStrikeDelaySeconds;
+        private bool _marching;                         // the last slide was a march step, not a knockback
+        private float _runLingerRemaining;
 
         public Point GridPosition { get; private set; }
         public Vector2 PixelPosition { get; private set; }
@@ -41,6 +44,14 @@ namespace TileQuest
 
         // How fast a wave enemy walks, in tiles per second.
         public float MarchTilesPerSecond { get; init; } = 2f;
+
+        // True while the sprite is facing left (the sheets are drawn facing right).
+        public bool FacingLeft { get; private set; }
+
+        // True while a wave enemy is walking: sliding between tiles on a march
+        // step (not a knockback), with a short linger so the run animation does
+        // not flicker to idle between steps. The renderer swaps to the run sheet.
+        public bool IsRunning => IsAlive && _marching && (IsSliding || _runLingerRemaining > 0f);
 
         // True while the sprite is still sliding toward its tile.
         public bool IsSliding => PixelPosition != _targetPixelPosition;
@@ -105,6 +116,8 @@ namespace TileQuest
         // moves the enemy there (the pixel position slides over in Update).
         public void KnockBackTo(Point tile)
         {
+            _marching = false;
+            _runLingerRemaining = 0f;
             GridPosition = tile;
             _targetPixelPosition = new Vector2(tile.X * _tileSize, tile.Y * _tileSize);
             _slideTilesPerSecond = KnockbackTilesPerSecond;
@@ -114,9 +127,26 @@ namespace TileQuest
         // the enemy's own walking speed. The caller picks a free neighbour tile.
         public void MarchTo(Point tile)
         {
+            FaceToward(tile.X);
+            _marching = true;
+            _runLingerRemaining = RunLingerSeconds;
             GridPosition = tile;
             _targetPixelPosition = new Vector2(tile.X * _tileSize, tile.Y * _tileSize);
             _slideTilesPerSecond = MarchTilesPerSecond;
+        }
+
+        // Turns toward a tile column (may be fractional, e.g. the middle of a
+        // 2-wide hearth). Same column: keeps whichever way it was facing.
+        public void FaceToward(float tileX)
+        {
+            if (tileX < GridPosition.X)
+            {
+                FacingLeft = true;
+            }
+            else if (tileX > GridPosition.X)
+            {
+                FacingLeft = false;
+            }
         }
 
         // Starts a strike if the cooldown has run out; returns whether it did.
@@ -137,6 +167,9 @@ namespace TileQuest
             HitFlashRemaining = Math.Max(0f, HitFlashRemaining - deltaSeconds);
             _stunRemaining = Math.Max(0f, _stunRemaining - deltaSeconds);
             _attackCooldownRemaining = Math.Max(0f, _attackCooldownRemaining - deltaSeconds);
+            _runLingerRemaining = _marching && IsSliding
+                ? RunLingerSeconds
+                : Math.Max(0f, _runLingerRemaining - deltaSeconds);
 
             if (!IsAlive)
             {

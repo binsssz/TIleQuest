@@ -4,9 +4,10 @@ using Microsoft.Xna.Framework;
 
 namespace TileQuest
 {
-    // The village hearth: a square bonfire the player lights to start a night
-    // and the goblins try to put out. Occupies Size x Size tiles (blocked for
-    // movement) and has hit points that persist from night to night.
+    // The village hearth: a statue on a round stone platform that the player
+    // wakes to start a night and the goblins try to tear down. Occupies
+    // Size x Size tiles (the statue's base, blocked for movement) and has hit
+    // points that persist from night to night.
     public class Hearth
     {
         public const int DefaultMaxHealth = 100;

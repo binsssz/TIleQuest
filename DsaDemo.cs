@@ -45,8 +45,23 @@ namespace TileQuest
             Check($"night 1 queues {expected} enemies", spawner.RemainingInWave == expected);
 
             int spawned = 0;
+            if (spawner.Update(0f) != null)
+            {
+                spawned++;
+            }
+            Check("first enemy spawns immediately", spawned == 1 && spawner.RemainingInWave == expected - 1);
+
+            bool waitedForDelay = spawner.Update(1f) == null && spawner.Update(0.49f) == null;
+            Check("next enemy waits for its 1.5 second delay", waitedForDelay);
+
+            if (spawner.Update(0.02f) != null)
+            {
+                spawned++;
+            }
+            Check("next enemy spawns after the delay", spawned == 2 && spawner.RemainingInWave == expected - 2);
+
             // 2s per step is longer than the 1.5s spawn delay, so each call
-            // releases exactly one enemy.
+            // releases exactly one remaining enemy.
             while (!spawner.IsWaveComplete)
             {
                 var enemy = spawner.Update(2f);

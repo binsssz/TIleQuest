@@ -20,7 +20,8 @@ namespace TileQuest
         // CopyToOutputDirectory entry for Content/**/*.png).
         private Texture2D _floorTilesTexture = null!;
         private Texture2D _villageGroundTexture = null!;
-        private Texture2D _villageObjectsTexture = null!;
+        private Texture2D _villageObjectsGroundTexture = null!;
+        private Texture2D _villageObjectsMainTexture = null!;
         private PathCorners _pathCorners = null!;
         private Texture2D _vegetationTexture = null!;
         private Texture2D _shadowsTexture = null!;
@@ -32,8 +33,7 @@ namespace TileQuest
         private Texture2D _playerTexture = null!;
         private Texture2D _wizardTexture = null!;
         private Texture2D _pixelTexture = null!;
-        private Texture2D _bonfireTexture = null!;
-        private Texture2D _bonfireFlameTexture = null!;
+        private Texture2D _hearthGlowTexture = null!;
         private Texture2D _txPropsTexture = null!;
         private Texture2D _lampTexture = null!;
         private Texture2D _forestTerrainTexture = null!;
@@ -77,6 +77,7 @@ namespace TileQuest
         private string _bannerText = string.Empty;
         private float _bannerRemaining;
         private readonly WaveSpawner _spawner = new();
+        private EnemySpawnInfo? _pendingWaveSpawn;
         private readonly Hearth _hearth = new(VillageCollisionLayout.HearthTile, VillageCollisionLayout.HearthSize);
         private HearthPathField? _hearthPaths;
         private Point[] _entryPoints = Array.Empty<Point>();
@@ -89,12 +90,21 @@ namespace TileQuest
         private int _chestSelection;
         private Texture2D _enemyTexture = null!;
         private Texture2D _enemyHandsTexture = null!;
+        private Texture2D _enemyRunTexture = null!;
         private const int SwingDamage = 5;
         private const int EnemyMaxHealth = 20;
         private const int EnemyCellSize = 32;       // Idle-Sheet.png: 4 frames of 32x32 in one row
         private const int EnemyFrameCount = 4;
         private const float EnemyFramesPerSecond = 6f;
         private const int EnemySpriteHeight = 28;   // head-to-feet in source pixels, scaled to one tile
+
+        // Orc/Run/Run-Sheet.png: 6 frames of 64x64 in one row, side view facing
+        // right, feet on the bottom edge. Used while a goblin is marching; the
+        // sheet is flipped when it walks left. Frames per tile walked keeps the
+        // legs in step with the march speed, which grows from night to night.
+        private const int EnemyRunCellSize = 64;
+        private const int EnemyRunFrameCount = 6;
+        private const float EnemyRunFramesPerTile = 4.8f;
 
         // The goblin sprite has no arms, so its hands are separate sprites drawn
         // on top. Hands.png is 2 columns (left hand, right hand) of 16x16 cells;
@@ -122,11 +132,16 @@ namespace TileQuest
         private const int PlayerSwingFrameCount = 4;
         private const float WalkFramesPerSecond = 12f;
         private const int PlayerSpriteHeight = 21; // head-to-feet in source pixels, scaled to one tile
-        private const int BonfireFrameSize = 32;
-        private const int BonfireFrameCount = 4;
-        private const float BonfireFramesPerSecond = 8f;
-        private const int BonfireFlameFrameWidth = 32;
-        private const int BonfireFlameFrameHeight = 48;
+
+        // The village hearth is two props from TX Props.png (16px art, drawn at
+        // the village's 2x scale): a round stone platform lying flat on the
+        // plaza, with the praying-woman statue standing on its centre slab. The
+        // blocked 2x2 footprint is the statue's base; the platform is floor.
+        private static readonly Rectangle HearthPlatformSource = new(353, 269, 94, 72);
+        private static readonly Rectangle HearthStatueSource = new(445, 20, 37, 73);
+        private const int HearthArtScale = 2;
+        private const int HearthPlatformSlabBottom = 42;   // source px from the platform's top to where the statue's feet land
+        private const int HearthBarWidth = TileSize * 3;
         private const int LampHeightTiles = 4;
         private static readonly Rectangle LampSource = new(45, 17, 40, 94);
         private static readonly Rectangle BarFillSource = new(4, 2, 3, 6);
@@ -139,8 +154,8 @@ namespace TileQuest
         {
             _graphics = new GraphicsDeviceManager(this)
             {
-                PreferredBackBufferWidth = 800,
-                PreferredBackBufferHeight = 600
+                PreferredBackBufferWidth = 960,
+                PreferredBackBufferHeight = 640
             };
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
@@ -197,7 +212,8 @@ namespace TileQuest
                 LoadTexture("Trees/Tree 8.png"),
             };
             _villageGroundTexture = LoadTexture("village_ground.png");
-            _villageObjectsTexture = LoadTexture("village_objects.png");
+            _villageObjectsGroundTexture = LoadTexture("village_objects_ground_decor.png");
+            _villageObjectsMainTexture = LoadTexture("village_objects_main.png");
             _floorTilesTexture = LoadTexture("Ground/Tiles/Floors_Tiles.png");
             _pathCorners = new PathCorners(GraphicsDevice, _floorTilesTexture);
             _vegetationTexture = LoadTexture("Vegetation/Vegetation.png");
@@ -210,9 +226,8 @@ namespace TileQuest
             _wizardTexture = LoadTexture("npc_sprite.png");
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
+            _enemyRunTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png");
             _wellTexture = LoadTexture("Traversal/PIT - DAY.png");
-            _bonfireTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Bonfire_01-Sheet.png");
-            _bonfireFlameTexture = LoadTexture("Environment/Structures/Stations/Bonfire/Fire_01-Sheet.png");
             _txPropsTexture = LoadTexture("TX Props.png");
             _lampTexture = LoadTexture("Icons/Lamp.png");
             _forestTerrainTexture = LoadTexture("Environment/Tilesets/Wall_Tiles.png");
@@ -225,7 +240,8 @@ namespace TileQuest
                 _forestSprites.Add(file, LoadTexture(file));
             }
             ValidateVillageLayer(_villageGroundTexture, "village_ground.png");
-            ValidateVillageLayer(_villageObjectsTexture, "village_objects.png");
+            ValidateVillageLayer(_villageObjectsGroundTexture, "village_objects_ground_decor.png");
+            ValidateVillageLayer(_villageObjectsMainTexture, "village_objects_main.png");
             ValidateDungeonBackground();
 
             _propSheets[PropSheet.Rocks] = _rocksTexture;
@@ -237,6 +253,7 @@ namespace TileQuest
             _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
             _pixelTexture.SetData(new[] { Color.White });
             CreateDungeonVignette();
+            CreateHearthGlow();
             PrepareMapVisuals();
 
             // After the forest trunk tiles are set, so enemies never spawn on one.
@@ -299,6 +316,31 @@ namespace TileQuest
 
             _dungeonVignetteTexture = new Texture2D(GraphicsDevice, width, height);
             _dungeonVignetteTexture.SetData(pixels);
+        }
+
+        // A soft white radial falloff (premultiplied, for additive blending).
+        // Tinted warm and stretched over the platform at night so the hearth
+        // reads as a light source in the dark village.
+        private void CreateHearthGlow()
+        {
+            const int size = 128;
+            var pixels = new Color[size * size];
+            float radius = size / 2f;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x + 0.5f - radius) / radius;
+                    float dy = (y + 0.5f - radius) / radius;
+                    float falloff = Math.Max(0f, 1f - MathF.Sqrt(dx * dx + dy * dy));
+                    int value = (int)Math.Round(MathF.Pow(falloff, 1.5f) * 255f);
+                    pixels[y * size + x] = new Color(value, value, value, value);
+                }
+            }
+
+            _hearthGlowTexture = new Texture2D(GraphicsDevice, size, size);
+            _hearthGlowTexture.SetData(pixels);
         }
 
         private void PrepareMapVisuals()
@@ -434,6 +476,7 @@ namespace TileQuest
 
             _hearthPaths = paths;
             _entryPoints = entries;
+            _pendingWaveSpawn = null;
             _nightNumber++;
             _gameState = GameState.Night;
             _spawner.QueueWave(_nightNumber);
@@ -449,10 +492,10 @@ namespace TileQuest
 
             // Queue -> world: the spawner hands over the next goblin once its
             // delay has run out.
-            EnemySpawnInfo? spawn = _spawner.Update(deltaSeconds);
-            if (spawn != null)
+            _pendingWaveSpawn ??= _spawner.Update(deltaSeconds);
+            if (_pendingWaveSpawn is EnemySpawnInfo spawn && TrySpawnWaveEnemy(spawn, enemies))
             {
-                SpawnWaveEnemy(spawn, enemies);
+                _pendingWaveSpawn = null;
             }
 
             foreach (Enemy enemy in enemies)
@@ -464,6 +507,7 @@ namespace TileQuest
 
                 if (_hearth.IsAdjacentTo(enemy.GridPosition))
                 {
+                    enemy.FaceToward(_hearth.Position.X + (_hearth.Size - 1) / 2f);
                     if (enemy.TryStrike(HearthHitSeconds))
                     {
                         _hearth.TakeDamage(HearthHitDamage);
@@ -484,32 +528,32 @@ namespace TileQuest
                 return;
             }
 
-            if (_spawner.IsWaveComplete && !enemies.Any(enemy => enemy.IsWaveEnemy && enemy.IsAlive))
+            if (_spawner.IsWaveComplete && _pendingWaveSpawn == null &&
+                !enemies.Any(enemy => enemy.IsWaveEnemy && enemy.IsAlive))
             {
                 EndNight();
             }
         }
 
-        private void SpawnWaveEnemy(EnemySpawnInfo info, List<Enemy> enemies)
+        private bool TrySpawnWaveEnemy(EnemySpawnInfo info, List<Enemy> enemies)
         {
             int start = Random.Shared.Next(_entryPoints.Length);
-            Point tile = _entryPoints[start];
             for (int i = 0; i < _entryPoints.Length; i++)
             {
                 Point candidate = _entryPoints[(start + i) % _entryPoints.Length];
                 if (candidate != _player.GridPosition &&
                     !enemies.Any(enemy => enemy.IsAlive && enemy.GridPosition == candidate))
                 {
-                    tile = candidate;
-                    break;
+                    enemies.Add(new Enemy(candidate, TileSize, info.Health)
+                    {
+                        IsWaveEnemy = true,
+                        MarchTilesPerSecond = info.Speed * MarchSpeedScale,
+                    });
+                    return true;
                 }
             }
 
-            enemies.Add(new Enemy(tile, TileSize, info.Health)
-            {
-                IsWaveEnemy = true,
-                MarchTilesPerSecond = info.Speed * MarchSpeedScale,
-            });
+            return false;
         }
 
         private bool IsTileTakenForEnemy(Point tile, Enemy self)
@@ -549,6 +593,7 @@ namespace TileQuest
             _gameState = GameState.Day;
             _hearthPaths = null;
             _spawner.ClearWave();
+            _pendingWaveSpawn = null;
             _enemies[WorldMapType.Village].RemoveAll(enemy => enemy.IsWaveEnemy);
             _hearth.RestoreFully();
             _nightNumber--;
@@ -575,6 +620,7 @@ namespace TileQuest
         private int GoblinsRemaining()
         {
             return _spawner.RemainingInWave +
+                   (_pendingWaveSpawn == null ? 0 : 1) +
                    _enemies[WorldMapType.Village].Count(enemy => enemy.IsWaveEnemy && enemy.IsAlive);
         }
 
@@ -752,8 +798,10 @@ namespace TileQuest
             if (_map.MapType == WorldMapType.Village)
             {
                 DrawVillageGround();
+                DrawVillageObjectLayer(_villageObjectsGroundTexture);
+                DrawHearthPlatform(_spriteBatch);
                 DrawVillageActors(gameTime);
-                DrawVillageObjectSlice(0, _villageObjectsTexture.Height);
+                DrawVillageObjectLayer(_villageObjectsMainTexture);
             }
             else if (_map.MapType == WorldMapType.Dungeon)
             {
@@ -827,9 +875,6 @@ namespace TileQuest
             base.Draw(gameTime);
         }
 
-        private VillageStructure HearthStructure =>
-            new(TileType.VillageHearth, _hearth.Position, _hearth.Size, _hearth.Size);
-
         private void DrawHearthHealthBar()
         {
             if (_gameState != GameState.Night && _hearth.Health >= _hearth.MaxHealth)
@@ -837,27 +882,54 @@ namespace TileQuest
                 return;
             }
 
-            int barWidth = _hearth.Size * TileSize - 8;
-            int barX = _hearth.Position.X * TileSize + 4;
-            int barY = _hearth.Position.Y * TileSize - TileSize / 2 - 10;   // above the flame
+            int barWidth = HearthBarWidth;
+            int barX = HearthFootprintCenterX() - barWidth / 2;
+            int barY = HearthStatueDestination().Y - 14;   // above the statue's head
             int filled = (int)Math.Round(barWidth * (_hearth.Health / (float)_hearth.MaxHealth));
             _spriteBatch.Draw(_pixelTexture, new Rectangle(barX - 1, barY - 1, barWidth + 2, 7), Color.Black * 0.8f);
             _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, barWidth, 5), new Color(90, 30, 20));
             _spriteBatch.Draw(_pixelTexture, new Rectangle(barX, barY, filled, 5), Color.Orange);
         }
 
-        // Dims the village for the night, then redraws the hearth on top so the
-        // fire stays bright against the dark.
+        // Dims the village for the night, then lets the hearth's light cut
+        // through the dark with a warm additive glow (it brightens whatever
+        // stands on the plaza instead of repainting over it), and finally draws
+        // the hearth's health bar above the dimming so it stays readable.
         private void DrawNightOverlay(GameTime gameTime)
         {
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             _spriteBatch.Draw(_pixelTexture, GraphicsDevice.Viewport.Bounds, new Color(6, 10, 38) * NightDimAlpha);
             _spriteBatch.End();
 
+            _spriteBatch.Begin(
+                blendState: BlendState.Additive,
+                samplerState: SamplerState.LinearClamp,
+                transformMatrix: _camera.GetTransformationMatrix());
+            DrawHearthGlow(gameTime);
+            _spriteBatch.End();
+
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
-            DrawVillageHearth(HearthStructure, _spriteBatch, gameTime);
             DrawHearthHealthBar();
             _spriteBatch.End();
+        }
+
+        // The glow pulses gently and fades as the hearth takes damage, so the
+        // plaza visibly darkens when the night is going badly.
+        private void DrawHearthGlow(GameTime gameTime)
+        {
+            float seconds = (float)gameTime.TotalGameTime.TotalSeconds;
+            float health = _hearth.Health / (float)_hearth.MaxHealth;
+            float strength = (0.8f + 0.2f * MathF.Sin(seconds * 2.4f)) * (0.35f + 0.65f * health) * 0.65f;
+
+            Rectangle platform = HearthPlatformDestination();
+            int width = platform.Width * 3;
+            int height = platform.Height * 3;
+            var destination = new Rectangle(
+                platform.Center.X - width / 2,
+                platform.Center.Y - height / 2,
+                width,
+                height);
+            _spriteBatch.Draw(_hearthGlowTexture, destination, new Color(255, 205, 140) * strength);
         }
 
         // Top-centre status: day or night counter, wave progress, hearth HP, plus
@@ -949,10 +1021,10 @@ namespace TileQuest
             Viewport viewport = GraphicsDevice.Viewport;
             DrawPlayerStatsHud(viewport);
 
-            const int slotSize = 36;
-            const int slotGap = 4;
-            const int panelWidth = 172;
-            const int panelHeight = 116;
+            const int slotSize = 44;
+            const int slotGap = 6;
+            const int panelWidth = 220;
+            const int panelHeight = 146;
             int panelX = viewport.Width - panelWidth - 14;
             int panelY = viewport.Height - panelHeight - 14;
 
@@ -1117,8 +1189,8 @@ namespace TileQuest
 
         private void DrawPlayerStatsHud(Viewport viewport)
         {
-            const int panelWidth = 198;
-            const int panelHeight = 126;
+            const int panelWidth = 164;
+            const int panelHeight = 104;
             int x = 16;
             int y = viewport.Height - panelHeight - 14;
             var panel = new Rectangle(x, y, panelWidth, panelHeight);
@@ -1126,29 +1198,29 @@ namespace TileQuest
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             DrawHudPanel(panel);
             BitmapFont.Draw(_spriteBatch, _pixelTexture, "HEALTH", new Point(x + 12, y + 7), 2, Color.Wheat);
-            var healthMeter = new Rectangle(x + 12, y + 23, 174, 32);
+            var healthMeter = new Rectangle(x + 12, y + 22, 124, 22);
             _spriteBatch.Draw(_pixelTexture, healthMeter, new Color(45, 28, 24));
             _spriteBatch.Draw(
                 _pixelTexture,
-                new Rectangle(healthMeter.X + 4, healthMeter.Y + 4, healthMeter.Width - 8, healthMeter.Height - 8),
+                new Rectangle(healthMeter.X + 3, healthMeter.Y + 3, healthMeter.Width - 6, healthMeter.Height - 6),
                 new Color(20, 16, 17));
             _spriteBatch.Draw(
                 _healthBarTexture,
-                new Rectangle(healthMeter.X + 4, healthMeter.Y + 4, healthMeter.Width - 8, healthMeter.Height - 8),
+                new Rectangle(healthMeter.X + 3, healthMeter.Y + 3, healthMeter.Width - 6, healthMeter.Height - 6),
                 BarFillSource,
                 Color.White);
             DrawHudBorder(healthMeter, new Color(156, 119, 69));
 
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "ENERGY", new Point(x + 12, y + 66), 2, Color.Wheat);
-            var energyMeter = new Rectangle(x + 12, y + 82, 174, 32);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "ENERGY", new Point(x + 12, y + 52), 2, Color.Wheat);
+            var energyMeter = new Rectangle(x + 12, y + 67, 124, 22);
             _spriteBatch.Draw(_pixelTexture, energyMeter, new Color(28, 32, 43));
             _spriteBatch.Draw(
                 _pixelTexture,
-                new Rectangle(energyMeter.X + 4, energyMeter.Y + 4, energyMeter.Width - 8, energyMeter.Height - 8),
+                new Rectangle(energyMeter.X + 3, energyMeter.Y + 3, energyMeter.Width - 6, energyMeter.Height - 6),
                 new Color(16, 19, 26));
             _spriteBatch.Draw(
                 _energyBarTexture,
-                new Rectangle(energyMeter.X + 4, energyMeter.Y + 4, energyMeter.Width - 8, energyMeter.Height - 8),
+                new Rectangle(energyMeter.X + 3, energyMeter.Y + 3, energyMeter.Width - 6, energyMeter.Height - 6),
                 BarFillSource,
                 Color.White);
             DrawHudBorder(energyMeter, new Color(156, 119, 69));
@@ -1308,21 +1380,15 @@ namespace TileQuest
                 Color.White);
         }
 
-        private void DrawVillageObjectSlice(int startY, int endY)
+        private void DrawVillageObjectLayer(Texture2D texture)
         {
-            if (startY >= endY)
-            {
-                return;
-            }
-
             const float scale = TileSize / 16f;
-            var source = new Rectangle(0, startY, _villageObjectsTexture.Width, endY - startY);
             var destination = new Rectangle(
                 0,
-                (int)(startY * scale),
+                0,
                 _map.Width * TileSize,
-                (int)((endY - startY) * scale));
-            _spriteBatch.Draw(_villageObjectsTexture, destination, source, Color.White);
+                (int)(texture.Height * scale));
+            _spriteBatch.Draw(texture, destination, Color.White);
         }
 
         private void DrawVillageActors(GameTime gameTime)
@@ -1336,8 +1402,11 @@ namespace TileQuest
 
             actors.Add(((_hearth.Position.Y + _hearth.Size) * TileSize, () =>
             {
-                DrawVillageHearth(HearthStructure, _spriteBatch, gameTime);
-                DrawHearthHealthBar();
+                DrawHearthStatue(_spriteBatch);
+                if (_gameState != GameState.Night)
+                {
+                    DrawHearthHealthBar();   // at night the overlay draws it above the dimming
+                }
             }));
 
             Point wizardPosition = VillageCollisionLayout.WizardPosition;
@@ -1713,47 +1782,48 @@ namespace TileQuest
             spriteBatch.Draw(texture, destination, Color.White);
         }
 
+        // Both halves in one call, for DrawVillageStructure. The game itself draws
+        // them separately: the platform is floor (under every actor), the statue
+        // is depth-sorted with the actors so people can walk behind it.
         private void DrawVillageHearth(VillageStructure hearth, SpriteBatch spriteBatch, GameTime gameTime)
         {
-            int platformSourceX = 352;
-            int platformSourceY = 174;
-            int platformSourceWidth = 32;
-            int platformSourceHeight = 76;
-            int platformDrawWidth = hearth.Width * TileSize;
-            int platformDrawHeight = TileSize + 12;
-            int platformX = hearth.Position.X * TileSize + (hearth.Width * TileSize - platformDrawWidth) / 2;
-            int platformY = hearth.Position.Y * TileSize + hearth.Height * TileSize - platformDrawHeight;
-            var platformDestination = new Rectangle(platformX, platformY, platformDrawWidth, platformDrawHeight);
-            var platformSource = new Rectangle(platformSourceX, platformSourceY, platformSourceWidth, platformSourceHeight);
-            spriteBatch.Draw(_txPropsTexture, platformDestination, platformSource, Color.White);
+            DrawHearthPlatform(spriteBatch);
+            DrawHearthStatue(spriteBatch);
+        }
 
-            int statueSourceX = 288;
-            int statueSourceY = 87;
-            int statueSourceWidth = 64;
-            int statueSourceHeight = 36;
-            int statueDrawWidth = hearth.Width * TileSize * 3 / 4;
-            int statueDrawHeight = statueDrawWidth * statueSourceHeight / statueSourceWidth;
-            int statueX = hearth.Position.X * TileSize + (hearth.Width * TileSize - statueDrawWidth) / 2;
-            int statueY = platformY - statueDrawHeight + 4;
-            var statueDestination = new Rectangle(statueX, statueY, statueDrawWidth, statueDrawHeight);
-            var statueSource = new Rectangle(statueSourceX, statueSourceY, statueSourceWidth, statueSourceHeight);
-            spriteBatch.Draw(_txPropsTexture, statueDestination, statueSource, Color.White);
+        private int HearthFootprintCenterX()
+        {
+            return _hearth.Position.X * TileSize + _hearth.Size * TileSize / 2;
+        }
 
-            int frame = (int)(gameTime.TotalGameTime.TotalSeconds * BonfireFramesPerSecond) % BonfireFrameCount;
-            var flameSource = new Rectangle(
-                frame * BonfireFlameFrameWidth,
-                0,
-                BonfireFlameFrameWidth,
-                BonfireFlameFrameHeight);
-            int footprintWidth = hearth.Width * TileSize;
-            int flameWidth = footprintWidth * 3 / 4;
-            int flameHeight = flameWidth * BonfireFlameFrameHeight / BonfireFlameFrameWidth;
-            var flameDestination = new Rectangle(
-                platformX + (footprintWidth - flameWidth) / 2,
-                platformY - TileSize / 2,
-                flameWidth,
-                flameHeight);
-            spriteBatch.Draw(_bonfireFlameTexture, flameDestination, flameSource, Color.White);
+        // The statue stands with its base on the bottom edge of the footprint.
+        private Rectangle HearthStatueDestination()
+        {
+            int width = HearthStatueSource.Width * HearthArtScale;
+            int height = HearthStatueSource.Height * HearthArtScale;
+            int footprintBottom = (_hearth.Position.Y + _hearth.Size) * TileSize;
+            return new Rectangle(HearthFootprintCenterX() - width / 2, footprintBottom - height, width, height);
+        }
+
+        // Centred under the statue and placed so its feet land on the lower
+        // part of the platform's centre slab.
+        private Rectangle HearthPlatformDestination()
+        {
+            int width = HearthPlatformSource.Width * HearthArtScale;
+            int height = HearthPlatformSource.Height * HearthArtScale;
+            int footprintBottom = (_hearth.Position.Y + _hearth.Size) * TileSize;
+            int top = footprintBottom - HearthPlatformSlabBottom * HearthArtScale;
+            return new Rectangle(HearthFootprintCenterX() - width / 2, top, width, height);
+        }
+
+        private void DrawHearthPlatform(SpriteBatch spriteBatch)
+        {
+            spriteBatch.Draw(_txPropsTexture, HearthPlatformDestination(), HearthPlatformSource, Color.White);
+        }
+
+        private void DrawHearthStatue(SpriteBatch spriteBatch)
+        {
+            spriteBatch.Draw(_txPropsTexture, HearthStatueDestination(), HearthStatueSource, Color.White);
         }
 
         private void DrawActors(GameTime gameTime)
@@ -1839,34 +1909,79 @@ namespace TileQuest
         }
 
         // Draws one hand cell so its centre lands on `center` (source pixels in the
-        // body frame), using the same scale and tint as the body.
-        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint)
+        // body frame), using the same scale and tint as the body. When the body
+        // is flipped to face left the hand's centre and sprite are mirrored too.
+        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint, bool flip)
         {
             var source = new Rectangle(column * HandCellSize, GoblinHandRow * HandCellSize, HandCellSize, HandCellSize);
-            int handX = bodyX + (int)Math.Round((center.X - HandCellSize / 2) * scale);
+            int centerX = flip ? EnemyCellSize - center.X : center.X;
+            int handX = bodyX + (int)Math.Round((centerX - HandCellSize / 2) * scale);
             int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + GoblinBodyBobY[frame]) * scale);
             int handSize = (int)Math.Round(HandCellSize * scale);
-            _spriteBatch.Draw(_enemyHandsTexture, new Rectangle(handX, handY, handSize, handSize), source, tint);
+            SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+            _spriteBatch.Draw(
+                _enemyHandsTexture,
+                new Rectangle(handX, handY, handSize, handSize),
+                source,
+                tint,
+                0f,
+                Vector2.Zero,
+                effects,
+                0f);
         }
 
         private void DrawEnemy(Enemy enemy)
         {
-            int frame = (int)(enemy.AnimationTime * EnemyFramesPerSecond) % EnemyFrameCount;
-            var source = new Rectangle(frame * EnemyCellSize, 0, EnemyCellSize, EnemyCellSize);
-
             float scale = TileSize / (float)EnemySpriteHeight;
-            int size = (int)Math.Round(EnemyCellSize * scale);
-            int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2;
-            int y = (int)enemy.PixelPosition.Y + TileSize - size;
+            bool flip = enemy.FacingLeft;
+            SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
 
             Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
             tint *= enemy.DeathFade;
 
-            // The back hand is drawn first so the body covers part of it; the
-            // front hand goes on top.
-            DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint);
-            _spriteBatch.Draw(_enemyTexture, new Rectangle(x, y, size, size), source, tint);
-            DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint);
+            if (enemy.IsRunning)
+            {
+                // Marching goblins use the run cycle. Its cells are 64x64 with
+                // the orc low and centred, so it is scaled like the idle sprite
+                // (same orc size) and bottom-centred on the tile.
+                int runFrame = (int)(enemy.AnimationTime * enemy.MarchTilesPerSecond * EnemyRunFramesPerTile)
+                               % EnemyRunFrameCount;
+                var runSource = new Rectangle(runFrame * EnemyRunCellSize, 0, EnemyRunCellSize, EnemyRunCellSize);
+                int runSize = (int)Math.Round(EnemyRunCellSize * scale);
+                int runX = (int)enemy.PixelPosition.X + (TileSize - runSize) / 2;
+                int runY = (int)enemy.PixelPosition.Y + TileSize - runSize;
+                _spriteBatch.Draw(
+                    _enemyRunTexture,
+                    new Rectangle(runX, runY, runSize, runSize),
+                    runSource,
+                    tint,
+                    0f,
+                    Vector2.Zero,
+                    effects,
+                    0f);
+            }
+            else
+            {
+                int frame = (int)(enemy.AnimationTime * EnemyFramesPerSecond) % EnemyFrameCount;
+                var source = new Rectangle(frame * EnemyCellSize, 0, EnemyCellSize, EnemyCellSize);
+                int size = (int)Math.Round(EnemyCellSize * scale);
+                int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2;
+                int y = (int)enemy.PixelPosition.Y + TileSize - size;
+
+                // The back hand is drawn first so the body covers part of it; the
+                // front hand goes on top. Facing left swaps which side each is on.
+                DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip);
+                _spriteBatch.Draw(
+                    _enemyTexture,
+                    new Rectangle(x, y, size, size),
+                    source,
+                    tint,
+                    0f,
+                    Vector2.Zero,
+                    effects,
+                    0f);
+                DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip);
+            }
 
             if (enemy.IsAlive && enemy.Health < enemy.MaxHealth)
             {
