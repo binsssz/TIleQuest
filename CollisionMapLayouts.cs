@@ -6,8 +6,8 @@ namespace TileQuest
     {
         public const int Width = 48;
         public const int Height = 36;
-        public static readonly Point SpawnPoint = new(22, 30);
-        public static readonly Point WizardPosition = new(23, 30);
+        public static readonly Point SpawnPoint = new(26, 15);
+        public static readonly Point WizardPosition = new(23, 25);
 
         // The Village Trader stands in the forge area; the matching '#' in
         // Rows (row 25, column 15) keeps her tile blocked.

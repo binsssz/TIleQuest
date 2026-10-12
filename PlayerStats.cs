@@ -9,7 +9,7 @@ namespace TileQuest
     // never spent on swings, and its only job is to fuel healing: while
     // energy is left and health is missing, health regenerates and burns a
     // little energy for every point restored. At zero energy there is no
-    // healing until the player eats (RestoreEnergy) or rests at dawn.
+    // healing until the player eats (RestoreEnergy) or respawns.
     public class PlayerStats
     {
         public const int MaxHealth = 100;
@@ -56,7 +56,7 @@ namespace TileQuest
             return true;
         }
 
-        // Food and dawn refills go through here.
+        // Food refills go through here.
         public void RestoreEnergy(int amount)
         {
             if (amount > 0)

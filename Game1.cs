@@ -107,6 +107,16 @@ namespace TileQuest
         private const int SwingDamage = 5;
         private bool _traderOpen;
         private int _traderSelection;
+
+        // Food vendor (Peasant_A, same 64x64 4-frame layout as the trader).
+        // She is not in the village yet: set FoodVendorTile to a walkable
+        // village tile, and block that tile in CollisionMapLayouts.cs the way
+        // the trader's is, to place her. While it is null she is not drawn
+        // and cannot be talked to.
+        private static readonly Point? FoodVendorTile = new Point(32, 29);
+        private Texture2D _foodVendorTexture = null!;
+        private bool _foodShopOpen;
+        private int _foodSelection;
         private bool _inventoryOpen;
         private int _inventorySelection;
         private int _inventoryScroll;
@@ -260,6 +270,7 @@ namespace TileQuest
             _playerTexture = LoadTexture("Characters/player.png");
             _wizardTexture = LoadTexture("npc_sprite.png");
             _traderTexture = LoadTexture("Entities/Npc's/Citizen_F/Tavern_A/Idle/Idle_Side-Sheet.png");
+            _foodVendorTexture = LoadTexture("Entities/Npc's/Citizen_F/Peasant_A/Idle/Idle-Sheet.png");
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
             _enemyRunTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png");
@@ -701,7 +712,6 @@ namespace TileQuest
             _hearthPaths = null;
             _dayCount++;
             _history.ClearForNewDay();   // yesterday's crafting can no longer be undone
-            _stats.RestoreFully();       // rest at dawn: full health and energy (until food exists)
             RestoreResourceNodesForNewDay();
 
             if (_nightNumber >= MaxNights)
@@ -728,9 +738,9 @@ namespace TileQuest
             _pendingWaveSpawn = null;
             _enemies[WorldMapType.Village].RemoveAll(enemy => enemy.IsWaveEnemy);
             _hearth.RestoreFully();
-            _stats.RestoreFully();
             if (playerFell && _map.MapType == WorldMapType.Village)
             {
+                _stats.RestoreFully();
                 _player.Teleport(_map.SpawnPoint);
                 _camera.SnapTo(_player.PixelPosition);
             }
@@ -923,6 +933,23 @@ namespace TileQuest
                     _equippedWeaponName = recipe.Name;
                     ShowBanner($"EQUIPPED {recipe.Name.ToUpperInvariant()}");
                 }
+                else if (selected.Category == FoodBook.Category)
+                {
+                    switch (FoodShop.TryEat(_inventory, _stats, selected.Name, selected.Category))
+                    {
+                        case EatResult.Eaten:
+                            ShowBanner($"ATE {selected.Name.ToUpperInvariant()}");
+                            entries = GetInventoryEntries();
+                            _inventorySelection = Math.Min(_inventorySelection, Math.Max(0, entries.Count - 1));
+                            break;
+                        case EatResult.AlreadyFull:
+                            ShowBanner("ENERGY IS ALREADY FULL");
+                            break;
+                        default:
+                            ShowBanner("ITEM CANNOT BE USED");
+                            break;
+                    }
+                }
                 else
                 {
                     ShowBanner("ITEM CANNOT BE USED");
@@ -976,7 +1003,7 @@ namespace TileQuest
             BitmapFont.Draw(_spriteBatch, _pixelTexture, "INVENTORY", new Point(panel.X + 16, panel.Y + 14), 3, Color.Wheat);
             BitmapFont.Draw(
                 _spriteBatch, _pixelTexture,
-                "UP DOWN SELECT   ENTER EQUIP   D DROP ONE   ESC CLOSE",
+                "UP DOWN SELECT   ENTER USE   D DROP ONE   ESC CLOSE",
                 new Point(panel.X + 16, panel.Y + 48), 1, Color.LightGray);
 
             int visibleCount = Math.Min(visibleRows, Math.Max(0, entries.Count - _inventoryScroll));
@@ -1011,6 +1038,13 @@ namespace TileQuest
                 {
                     BitmapFont.Draw(
                         _spriteBatch, _pixelTexture, "EQUIPPED",
+                        new Point(row.Right - 150, row.Y + 10), 1, Color.LimeGreen);
+                }
+
+                if (entry.Category == FoodBook.Category && FoodBook.FindByName(entry.Name) is FoodItem foodInfo)
+                {
+                    BitmapFont.Draw(
+                        _spriteBatch, _pixelTexture, $"+{foodInfo.Energy} ENERGY",
                         new Point(row.Right - 150, row.Y + 10), 1, Color.LimeGreen);
                 }
             }
@@ -1068,6 +1102,10 @@ namespace TileQuest
             {
                 UpdateTraderMenu(keyboard);
             }
+            else if (_foodShopOpen)
+            {
+                UpdateFoodShopMenu(keyboard);
+            }
             else if (WasPressed(keyboard, Keys.Escape))
             {
                 Exit();
@@ -1088,6 +1126,16 @@ namespace TileQuest
                 {
                     _traderOpen = true;
                     _traderSelection = 0;
+                    interacted = true;
+                }
+
+                if (!interacted &&
+                    _gameState == GameState.Day &&
+                    WasPressed(keyboard, Keys.E) &&
+                    IsPlayerBesideFoodVendor())
+                {
+                    _foodShopOpen = true;
+                    _foodSelection = 0;
                     interacted = true;
                 }
 
@@ -1159,6 +1207,7 @@ namespace TileQuest
                 DrawVillageActors(gameTime);
                 DrawVillageObjectLayer(_villageObjectsMainTexture);
                 DrawTrader(gameTime);
+                DrawFoodVendor(gameTime);
             }
             else if (_map.MapType == WorldMapType.Dungeon)
             {
@@ -1222,6 +1271,11 @@ namespace TileQuest
             if (_traderOpen)
             {
                 DrawTraderMenu();
+            }
+
+            if (_foodShopOpen)
+            {
+                DrawFoodShopMenu();
             }
 
             if (_inventoryOpen)
@@ -1341,6 +1395,17 @@ namespace TileQuest
                 int hintY = viewport.Height - 52;
                 _spriteBatch.Draw(_pixelTexture, new Rectangle(hintX, hintY, hintWidth, 30), new Color(18, 15, 14, 225));
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, tradeHint, new Point(hintX + 10, hintY + 8), 2, Color.Gold);
+            }
+
+            if (!night && !_foodShopOpen && !_traderOpen && _pendingTravel == null && _pendingNightStart == false &&
+                _openChest == null && IsPlayerBesideFoodVendor())
+            {
+                const string foodHint = "FOOD VENDOR  E=BUY";
+                int hintWidth = foodHint.Length * 12 + 20;
+                int hintX = (viewport.Width - hintWidth) / 2;
+                int hintY = viewport.Height - 52;
+                _spriteBatch.Draw(_pixelTexture, new Rectangle(hintX, hintY, hintWidth, 30), new Color(18, 15, 14, 225));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, foodHint, new Point(hintX + 10, hintY + 8), 2, Color.Gold);
             }
 
             if (_bannerRemaining > 0f)
@@ -1667,6 +1732,10 @@ namespace TileQuest
                 "STONE MACE" => new Rectangle(16, 128, 16, 16),
                 "IRON SWORD" => new Rectangle(0, 128, 16, 16),
                 "GOLD BLADE" => new Rectangle(48, 128, 16, 16),
+                "BREAD" => new Rectangle(64, 80, 16, 16),
+                "STEW" => new Rectangle(80, 80, 16, 16),
+                "ROAST MEAT" => new Rectangle(112, 80, 16, 16),
+                "PIE" => new Rectangle(80, 96, 16, 16),
                 _ => null,
             };
 
@@ -1913,6 +1982,136 @@ namespace TileQuest
             BitmapFont.Draw(
                 _spriteBatch, _pixelTexture,
                 "W/S SELECT   E CRAFT   U UNDO   ESC CLOSE",
+                new Point(panelX + 12, panelY + panelHeight - 16), 1, Color.Wheat);
+            _spriteBatch.End();
+        }
+
+        // ---- Food vendor: sells food for Gold (binary search on price) ------
+
+        private bool IsPlayerBesideFoodVendor()
+        {
+            if (FoodVendorTile is not Point vendor || _map.MapType != WorldMapType.Village)
+            {
+                return false;
+            }
+
+            Point player = _player.GridPosition;
+            return Math.Abs(player.X - vendor.X) + Math.Abs(player.Y - vendor.Y) <= 1;
+        }
+
+        private void UpdateFoodShopMenu(KeyboardState keyboard)
+        {
+            int count = FoodBook.SortedByPrice.Count;
+            if (WasPressed(keyboard, Keys.Escape))
+            {
+                _foodShopOpen = false;
+            }
+            else if (WasPressed(keyboard, Keys.W) || WasPressed(keyboard, Keys.Up))
+            {
+                _foodSelection = (_foodSelection + count - 1) % count;
+            }
+            else if (WasPressed(keyboard, Keys.S) || WasPressed(keyboard, Keys.Down))
+            {
+                _foodSelection = (_foodSelection + 1) % count;
+            }
+            else if (WasPressed(keyboard, Keys.E) || WasPressed(keyboard, Keys.Enter))
+            {
+                BuySelectedFood();
+            }
+        }
+
+        private void BuySelectedFood()
+        {
+            // The highlighted row's price tag is resolved back to a food item
+            // with a binary search over the price-sorted FoodBook.
+            int selectedPrice = FoodBook.SortedByPrice[_foodSelection].Price;
+            FoodItem? food = FoodBook.FindByPrice(selectedPrice);
+            if (food == null)
+            {
+                return;
+            }
+
+            ShowBanner(FoodShop.TryBuy(_inventory, food)
+                ? $"BOUGHT {food.Name.ToUpperInvariant()}"
+                : "NOT ENOUGH GOLD");
+        }
+
+        private void DrawFoodVendor(GameTime gameTime)
+        {
+            if (FoodVendorTile is not Point tile)
+            {
+                return;
+            }
+
+            int frame = (int)(gameTime.TotalGameTime.TotalSeconds * TraderFramesPerSecond) % TraderFrameCount;
+            var source = new Rectangle(frame * TraderCellSize, 0, TraderCellSize, TraderCellSize);
+            int size = (int)Math.Round(TraderCellSize * TraderScale);
+            int feetY = (int)Math.Round(TraderFeetRow * TraderScale);
+            var destination = new Rectangle(
+                tile.X * TileSize + (TileSize - size) / 2,
+                (tile.Y + 1) * TileSize - feetY,
+                size,
+                size);
+
+            // The sheet faces right; turn her toward the player when they are on her left.
+            SpriteEffects effects = _player.GridPosition.X < tile.X
+                ? SpriteEffects.FlipHorizontally
+                : SpriteEffects.None;
+            _spriteBatch.Draw(_foodVendorTexture, destination, source, Color.White, 0f, Vector2.Zero, effects, 0f);
+        }
+
+        private void DrawFoodShopMenu()
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            IReadOnlyList<FoodItem> foods = FoodBook.SortedByPrice;
+            const int rowHeight = 36;
+            const int panelWidth = 520;
+            int panelHeight = 46 + foods.Count * rowHeight + 28;
+            int panelX = (viewport.Width - panelWidth) / 2;
+            int panelY = (viewport.Height - panelHeight) / 2;
+            var dimText = new Color(130, 122, 114);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "FOOD VENDOR", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                $"ENERGY {_stats.Energy}/{PlayerStats.MaxEnergy}   GOLD {_inventory.CountOf(FoodBook.Currency)}",
+                new Point(panelX + 12, panelY + 30), 1, Color.LightGray);
+
+            for (int i = 0; i < foods.Count; i++)
+            {
+                FoodItem food = foods[i];
+                bool affordable = FoodShop.CanAfford(_inventory, food);
+                bool selected = i == _foodSelection;
+                int rowY = panelY + 46 + i * rowHeight;
+                var row = new Rectangle(panelX + 8, rowY, panelWidth - 16, rowHeight - 4);
+
+                _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+
+                Color nameColor = affordable ? Color.White : dimText;
+                DrawInventoryItemIcon(food.Name, new Rectangle(row.X + 8, rowY + 4, 16, 16));
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, food.Name.ToUpperInvariant(), new Point(row.X + 30, rowY + 4), 2, nameColor);
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, $"+{food.Energy} ENERGY", new Point(row.X + 190, rowY + 4), 2, nameColor);
+
+                int owned = _inventory.CountOf(food.Name);
+                if (owned > 0)
+                {
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, $"OWNED {owned}", new Point(row.X + 390, rowY + 8), 1, Color.Wheat);
+                }
+
+                int have = _inventory.CountOf(FoodBook.Currency);
+                Color priceColor = affordable ? new Color(140, 220, 140) : new Color(225, 110, 100);
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture,
+                    $"{FoodBook.Currency.ToUpperInvariant()} {have}/{food.Price}",
+                    new Point(row.X + 8, rowY + 21), 1, priceColor);
+            }
+
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture,
+                "W/S SELECT   E BUY   ESC CLOSE   EAT IN BAG: I",
                 new Point(panelX + 12, panelY + panelHeight - 16), 1, Color.Wheat);
             _spriteBatch.End();
         }

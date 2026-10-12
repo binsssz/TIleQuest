@@ -23,6 +23,7 @@ namespace TileQuest
             DemoStack();
             DemoCraftingUndo();
             DemoPlayerStats();
+            DemoFoodVendor();
             DemoLinkedList();
             DemoBinarySearch();
             DemoInsertionSort();
@@ -34,6 +35,55 @@ namespace TileQuest
         {
             Console.WriteLine($"  [{(ok ? "PASS" : "FAIL")}] {label}");
             if (ok) _passed++; else _failed++;
+        }
+
+        // Food vendor: binary search on price, buying with Gold, eating for energy.
+        private static void DemoFoodVendor()
+        {
+            Console.WriteLine("Food vendor (FoodBook, FoodShop)");
+
+            bool sorted = true;
+            for (int i = 1; i < FoodBook.SortedByPrice.Count; i++)
+            {
+                sorted &= FoodBook.SortedByPrice[i - 1].Price < FoodBook.SortedByPrice[i].Price;
+            }
+            Check("food menu is sorted by price with unique prices", sorted);
+
+            bool allFound = true;
+            foreach (FoodItem food in FoodBook.SortedByPrice)
+            {
+                allFound &= ReferenceEquals(FoodBook.FindByPrice(food.Price), food);
+            }
+            Check("binary search finds every food by its price", allFound);
+            Check("an unlisted price finds nothing", FoodBook.FindByPrice(99) == null);
+
+            var bread = FoodBook.FindByName("Bread")!;
+            var pie = FoodBook.FindByName("Pie")!;
+            var inventory = new Inventory();
+            var stats = new PlayerStats();
+
+            Check("cannot buy with no gold", !FoodShop.TryBuy(inventory, bread) && inventory.CountOf("Bread") == 0);
+
+            inventory.AddItem(new Item("Gold", "Resource", 1, 8));
+            inventory.AddItem(new Item("Gold", "Resource", 2, 8));
+            Check("gold from separate pickups pays for bread (3 gold, bread costs 1)",
+                FoodShop.TryBuy(inventory, bread) && inventory.CountOf("Gold") == 2 && inventory.CountOf("Bread") == 1);
+            Check("a pie costs more than the gold left, so nothing changes",
+                !FoodShop.TryBuy(inventory, pie) && inventory.CountOf("Gold") == 2 && inventory.CountOf("Pie") == 0);
+
+            Check("eating at full energy is refused and keeps the food",
+                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.AlreadyFull &&
+                inventory.CountOf("Bread") == 1);
+
+            stats.Update(307.5f);   // hunger: drains 61.5 energy
+            int before = stats.Energy;
+            Check("eating bread restores its energy and uses it up",
+                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.Eaten &&
+                stats.Energy == before + bread.Energy && inventory.CountOf("Bread") == 0);
+            Check("eating food you no longer have changes nothing",
+                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.NotOwned);
+            Check("gold is not food",
+                FoodShop.TryEat(inventory, stats, "Gold", "Resource") == EatResult.NotFood);
         }
 
         // Player stats: damage, grace period, hunger-style energy, healing.
