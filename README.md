@@ -2,13 +2,13 @@
 
 TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms (DSA) course project built with C# and MonoGame. The current playable prototype includes a village, a forest, a dungeon, map travel, resource gathering, basic melee combat, a five-night village hearth-defense loop, a village trader who crafts weapons with undo, and a linked-list quest log. Startup checks cover the DSA modules: Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search.
 
-The game is in a solid playable state for a course project and is ready for demo and review. The main remaining enhancement is a proper save/load system for continuing progress across sessions.
+The game is in a solid playable state for a course project and is ready for demo and review. Save/load lets players continue a run across sessions.
 
 ## Current Implementation
 
 ### Start menu
 
-- The game opens on a title screen drawn over the dimmed village (the world is frozen behind it). `W`/`S` or the arrows move, `Enter` / `E` / `Space` confirm, `Esc` quits. **New Game** starts playing, **How to Play** shows the controls and goal, **Quit** exits, and **Load Game** is available for saved progress when a save file exists. The menus use `GameScreen` (`Title`, `HowToPlay`, `Playing`), separate from the Day/Night `GameState`.
+- The game opens on a title screen drawn over the dimmed village (the world is frozen behind it). `W`/`S` or the arrows move, `Enter` / `E` / `Space` confirm, `Esc` quits. **New Game** starts a fresh run, **Load Game** restores saved progress when a save file exists, **How to Play** shows the controls and goal, and **Quit** exits. The menus use `GameScreen` (`Title`, `HowToPlay`, `Playing`), separate from the Day/Night `GameState`.
 
 ### World and navigation
 
@@ -26,6 +26,7 @@ The game is in a solid playable state for a course project and is ready for demo
 - **Player health and energy:** The lower-left bars are live (`PlayerStats.cs`). Energy is a hunger-style bar: it drains slowly over time, is not spent on swings, and fuels healing. While health is missing and energy remains, health regenerates (a few seconds after the last hit) and burns energy; at 0 energy there is no healing. Health and energy carry over at dawn, and losing the hearth does not refill them. If the player falls, they respawn at the village spawn with full health and energy. Night wave enemies standing next to the player hit the player instead of the hearth (their hearth damage ×2).
 - **HUD:** The two-row inventory HUD, current objective and expandable quest log, hearth status, and player health/energy bars are functional.
 - **Debugging:** Press `F3` to toggle hitbox overlays.
+- **Save/load:** Press `Esc` to open the pause menu and choose **Save Game**. **Load Game** on the title screen resumes that save, including inventory, quests, player stats and location, world resources and chests, enemies, and active night-wave progress. The save is stored at `%LOCALAPPDATA%\TileQuest\savegame.json` on Windows.
 - **Startup checks:** `TileGraph` checks map connectivity; `DsaDemo` self-checks Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search.
 
 ### DSA modules
@@ -40,10 +41,6 @@ The game is in a solid playable state for a course project and is ready for demo
 | Linear Search | `LinearSearchUtil.cs` | Finds the living enemy on a swing tile and adjacent interactables |
 
 The Dictionary-backed inventory remains the game's item storage; graph/BFS logic remains responsible for map connectivity and night enemy pathfinding.
-
-## Not Yet Implemented
-
-- Save/load progression between sessions is the main remaining feature if the project is meant to be used as a full standalone game.
 
 ## Building and Running
 

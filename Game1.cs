@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -76,6 +77,7 @@ namespace TileQuest
         private GameScreen _screen = GameScreen.Title;   // the game opens on the title menu
         private GameScreen _previousMenuScreen = GameScreen.Title;
         private int _titleSelection;
+        private string _menuMessage = string.Empty;
 
         // Ending screen (Victory / Defeat). The short input delay keeps a player
         // who is mashing Space to swing from dismissing the screen by accident.
@@ -259,11 +261,12 @@ namespace TileQuest
         // and camera. Initialize calls it once at launch; ResetGame calls it again
         // for a replay (the caller then runs PrepareMapVisuals and
         // SpawnDungeonSkeletons, as LoadContent does at launch).
-        private void BuildWorld()
+        private void BuildWorld(int? forestSeed = null)
         {
             _maps.Clear();
             _maps.Add(WorldMapType.Village, new TileMap(width: 48, height: 36, tileSize: TileSize, WorldMapType.Village));
-            _maps.Add(WorldMapType.Forest, new TileMap(width: 36, height: 29, tileSize: TileSize, WorldMapType.Forest));
+            _maps.Add(WorldMapType.Forest, new TileMap(
+                width: 36, height: 29, tileSize: TileSize, WorldMapType.Forest, forestSeed));
             _maps.Add(WorldMapType.Dungeon, new TileMap(width: 36, height: 28, tileSize: TileSize, WorldMapType.Dungeon));
             _map = _maps[WorldMapType.Village];
             _player = new Player(_map.SpawnPoint, TileSize, tilesPerSecond: 8f);
@@ -983,16 +986,7 @@ namespace TileQuest
 
             if (_nightNumber == 2 && !_bonusQuestInserted)
             {
-                QuestNode? nightTwoQuest = _questLog.Find(quest =>
-                    quest.Kind == QuestKind.SurviveNight &&
-                    quest.Target is int night && night == 2);
-                if (nightTwoQuest != null)
-                {
-                    _questLog.InsertAfterCurrent(
-                        new QuestNode("Defeat 5 enemies", QuestKind.DefeatEnemies, 5, 5),
-                        nightTwoQuest);
-                    _bonusQuestInserted = true;
-                }
+                InsertBonusQuest();
             }
             _questLog.OnNightSurvived(_nightNumber);
 
@@ -1078,7 +1072,492 @@ namespace TileQuest
             _hasTalkedToWizard = false;
             _endingSelection = 0;
             _endingInputDelay = 0f;
+            _menuMessage = string.Empty;
             Console.WriteLine("[Ending] Game state reset for a new run.");
+        }
+
+        private void SaveGame()
+        {
+            try
+            {
+                GameSaveStore.Save(CaptureGameState());
+                _menuMessage = "GAME SAVED";
+                Console.WriteLine($"[Save] Game saved to {GameSaveStore.SavePath}.");
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                _menuMessage = "SAVE FAILED - CHECK THE SAVE FOLDER";
+                Console.WriteLine($"[Save] Failed to save the game: {exception.Message}");
+            }
+        }
+
+        private GameSaveData CaptureGameState()
+        {
+            var save = new GameSaveData
+            {
+                Map = _map.MapType,
+                ForestSeed = _maps[WorldMapType.Forest].ForestSeed,
+                PlayerPosition = SavePoint(_player.GridPosition),
+                PlayerFacing = _player.Facing,
+                Health = _stats.Health,
+                Energy = _stats.EnergyAmount,
+                HearthHealth = _hearth.Health,
+                GameState = _gameState,
+                DayCount = _dayCount,
+                NightNumber = _nightNumber,
+                Kills = _kills,
+                AllNightsSurvived = _allNightsSurvived,
+                BonusQuestInserted = _bonusQuestInserted,
+                HasTalkedToWizard = _hasTalkedToWizard,
+                EquippedWeaponName = _equippedWeaponName,
+                QuestIndex = _questLog.CurrentIndex,
+                QuestProgress = _questLog.CurrentProgress,
+                SpawnTimer = _spawner.TimeUntilNextSpawn,
+            };
+
+            foreach (ItemCategory category in ItemCatalog.Categories)
+            {
+                foreach ((string type, int quantity) in _inventory.GetItems(category))
+                {
+                    save.Inventory.Add(new SavedItem { Name = type, Quantity = quantity });
+                }
+            }
+
+            foreach (TileMap map in _maps.Values)
+            {
+                var savedMap = new SavedMap { Map = map.MapType };
+                foreach ((Point tile, int hitsRemaining) in map.GetResourceNodeStates())
+                {
+                    savedMap.ResourceNodes.Add(new SavedResourceNode
+                    {
+                        Tile = SavePoint(tile),
+                        HitsRemaining = hitsRemaining,
+                    });
+                }
+                foreach (KeyValuePair<Point, ResourceType> pickup in map.Pickups)
+                {
+                    savedMap.Pickups.Add(new SavedPickup
+                    {
+                        Tile = SavePoint(pickup.Key),
+                        Type = pickup.Value,
+                    });
+                }
+                save.Maps.Add(savedMap);
+            }
+
+            foreach (TreasureChest chest in _dungeonChests)
+            {
+                var savedChest = new SavedChest { Tile = SavePoint(chest.Tiles[0]) };
+                foreach (Item item in chest.Items)
+                {
+                    savedChest.Items.Add(new SavedItem { Name = item.Name, Quantity = item.Quantity });
+                }
+                save.Chests.Add(savedChest);
+            }
+
+            foreach (KeyValuePair<WorldMapType, List<Enemy>> pair in _enemies)
+            {
+                foreach (Enemy enemy in pair.Value)
+                {
+                    if (!enemy.IsAlive)
+                    {
+                        continue;
+                    }
+
+                    save.Enemies.Add(new SavedEnemy
+                    {
+                        Map = pair.Key,
+                        Tile = SavePoint(enemy.GridPosition),
+                        Health = enemy.Health,
+                        MaxHealth = enemy.MaxHealth,
+                        IsWaveEnemy = enemy.IsWaveEnemy,
+                        IsHostile = enemy.IsHostile,
+                        Kind = enemy.Kind,
+                        Variant = enemy.Variant,
+                        HearthDamage = enemy.HearthDamage,
+                        MarchTilesPerSecond = enemy.MarchTilesPerSecond,
+                    });
+                }
+            }
+
+            foreach (EnemySpawnInfo spawn in _spawner.GetPendingSpawns())
+            {
+                save.PendingSpawns.Add(SaveSpawn(spawn));
+            }
+            if (_pendingWaveSpawn is EnemySpawnInfo pendingSpawn)
+            {
+                save.PendingWaveSpawn = SaveSpawn(pendingSpawn);
+            }
+
+            return save;
+        }
+
+        private void LoadGame()
+        {
+            try
+            {
+                GameSaveData save = GameSaveStore.Load();
+                ValidateGameSave(save);
+                RestoreGameState(save);
+                _menuMessage = string.Empty;
+                _screen = GameScreen.Playing;
+                Console.WriteLine($"[Save] Game loaded from {GameSaveStore.SavePath}.");
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or JsonException or
+                ArgumentException or InvalidOperationException)
+            {
+                _menuMessage = "LOAD FAILED - SAVE FILE IS INVALID OR UNAVAILABLE";
+                Console.WriteLine($"[Save] Failed to load the game: {exception.Message}");
+            }
+        }
+
+        private static void ValidateGameSave(GameSaveData save)
+        {
+            if (!Enum.IsDefined(save.Map) ||
+                !Enum.IsDefined(save.GameState) ||
+                !Enum.IsDefined(save.PlayerFacing) ||
+                save.Health < 0 || save.Health > PlayerStats.MaxHealth ||
+                float.IsNaN(save.Energy) || float.IsInfinity(save.Energy) ||
+                save.Energy < 0f || save.Energy > PlayerStats.MaxEnergy ||
+                save.HearthHealth < 0 || save.HearthHealth > Hearth.DefaultMaxHealth ||
+                save.DayCount < 1 || save.DayCount > MaxNights + 1 ||
+                save.NightNumber < 0 || save.NightNumber > MaxNights ||
+                save.Kills < 0 || save.QuestIndex < 0 || save.QuestProgress < 0 ||
+                save.PlayerPosition == null ||
+                float.IsNaN(save.SpawnTimer) || float.IsInfinity(save.SpawnTimer) ||
+                save.SpawnTimer < 0f ||
+                save.Inventory == null || save.Maps == null || save.Chests == null ||
+                save.Enemies == null || save.PendingSpawns == null ||
+                save.Maps.Count != Enum.GetValues<WorldMapType>().Length)
+            {
+                throw new InvalidDataException("The save file contains invalid game state.");
+            }
+
+            var seenMaps = new HashSet<WorldMapType>();
+            foreach (SavedMap map in save.Maps)
+            {
+                if (map == null || !Enum.IsDefined(map.Map) || !seenMaps.Add(map.Map) ||
+                    map.ResourceNodes == null || map.Pickups == null)
+                {
+                    throw new InvalidDataException("The save file contains invalid map data.");
+                }
+                foreach (SavedResourceNode node in map.ResourceNodes)
+                {
+                    if (node?.Tile == null || node.HitsRemaining < 0 || node.HitsRemaining > 4 ||
+                        !IsPointWithinMap(map.Map, node.Tile))
+                    {
+                        throw new InvalidDataException("The save file contains invalid resource-node data.");
+                    }
+                }
+                foreach (SavedPickup pickup in map.Pickups)
+                {
+                    if (pickup?.Tile == null || !Enum.IsDefined(pickup.Type) ||
+                        !IsPointWithinMap(map.Map, pickup.Tile))
+                    {
+                        throw new InvalidDataException("The save file contains invalid pickup data.");
+                    }
+                }
+            }
+            if (!IsPointWithinMap(save.Map, save.PlayerPosition))
+            {
+                throw new InvalidDataException("The saved player position is outside the map.");
+            }
+
+            foreach (SavedItem item in save.Inventory)
+            {
+                ValidateSavedItem(item);
+            }
+            foreach (SavedChest chest in save.Chests)
+            {
+                if (chest == null || chest.Tile == null || chest.Items == null ||
+                    !IsPointWithinMap(WorldMapType.Dungeon, chest.Tile))
+                {
+                    throw new InvalidDataException("The save file contains invalid chest data.");
+                }
+                foreach (SavedItem item in chest.Items)
+                {
+                    ValidateSavedItem(item);
+                }
+            }
+            foreach (SavedEnemy enemy in save.Enemies)
+            {
+                if (enemy == null || enemy.Tile == null || !Enum.IsDefined(enemy.Map) ||
+                    !Enum.IsDefined(enemy.Kind) || !Enum.IsDefined(enemy.Variant) ||
+                    enemy.MaxHealth <= 0 || enemy.Health <= 0 || enemy.Health > enemy.MaxHealth ||
+                    enemy.HearthDamage < 0 || enemy.MarchTilesPerSecond < 0f ||
+                    float.IsNaN(enemy.MarchTilesPerSecond) || float.IsInfinity(enemy.MarchTilesPerSecond) ||
+                    !IsPointWithinMap(enemy.Map, enemy.Tile))
+                {
+                    throw new InvalidDataException("The save file contains invalid enemy data.");
+                }
+            }
+            foreach (SavedSpawn spawn in save.PendingSpawns)
+            {
+                ValidateSavedSpawn(spawn);
+            }
+            if (save.PendingWaveSpawn != null)
+            {
+                ValidateSavedSpawn(save.PendingWaveSpawn);
+            }
+
+            int questCount = save.BonusQuestInserted ? 9 : 8;
+            if (save.QuestIndex > questCount ||
+                (save.QuestIndex == questCount && save.QuestProgress != 0) ||
+                (save.QuestIndex < questCount &&
+                 save.QuestProgress > RequiredQuestAmount(save.QuestIndex, save.BonusQuestInserted)))
+            {
+                throw new InvalidDataException("The save file contains invalid quest progress.");
+            }
+
+            if (save.EquippedWeaponName != null &&
+                (!ItemCatalog.IsKnown(save.EquippedWeaponName) ||
+                 ItemCatalog.CategoryOf(save.EquippedWeaponName) != ItemCategory.Weapon))
+            {
+                throw new InvalidDataException("The save file contains an invalid equipped weapon.");
+            }
+        }
+
+        private static bool IsPointWithinMap(WorldMapType map, SavedPoint point)
+        {
+            (int width, int height) = map switch
+            {
+                WorldMapType.Village => (48, 36),
+                WorldMapType.Forest => (36, 29),
+                WorldMapType.Dungeon => (36, 28),
+                _ => (0, 0),
+            };
+            return point.X >= 0 && point.X < width && point.Y >= 0 && point.Y < height;
+        }
+
+        private static int RequiredQuestAmount(int index, bool bonusQuestInserted)
+        {
+            if (bonusQuestInserted && index == 5)
+            {
+                return 5;
+            }
+            if (bonusQuestInserted && index > 5)
+            {
+                index--;
+            }
+            return index switch
+            {
+                0 => 10,
+                1 => 5,
+                _ => 1,
+            };
+        }
+
+        private static void ValidateSavedItem(SavedItem item)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.Name) ||
+                !ItemCatalog.IsKnown(item.Name) || item.Quantity <= 0)
+            {
+                throw new InvalidDataException("The save file contains an invalid item.");
+            }
+        }
+
+        private static void ValidateSavedSpawn(SavedSpawn spawn)
+        {
+            if (spawn == null || !Enum.IsDefined(spawn.Kind) || !Enum.IsDefined(spawn.Variant) ||
+                spawn.SpawnDelaySeconds < 0f || spawn.Health <= 0 || spawn.Speed < 0f ||
+                spawn.HearthDamage < 0 ||
+                float.IsNaN(spawn.SpawnDelaySeconds) || float.IsInfinity(spawn.SpawnDelaySeconds) ||
+                float.IsNaN(spawn.Speed) || float.IsInfinity(spawn.Speed))
+            {
+                throw new InvalidDataException("The save file contains invalid wave data.");
+            }
+        }
+
+        private void RestoreGameState(GameSaveData save)
+        {
+            BuildWorld(save.ForestSeed);
+            SpawnDungeonSkeletons();
+
+            foreach (SavedMap savedMap in save.Maps)
+            {
+                TileMap map = _maps[savedMap.Map];
+                foreach (SavedResourceNode node in savedMap.ResourceNodes)
+                {
+                    if (node?.Tile == null || !map.RestoreResourceNodeHits(
+                            new Point(node.Tile.X, node.Tile.Y), node.HitsRemaining))
+                    {
+                        Console.WriteLine($"[Save] Ignored an unavailable resource node on {savedMap.Map}.");
+                    }
+                }
+
+                var pickups = new List<KeyValuePair<Point, ResourceType>>(savedMap.Pickups.Count);
+                foreach (SavedPickup pickup in savedMap.Pickups)
+                {
+                    if (pickup?.Tile == null || !Enum.IsDefined(pickup.Type))
+                    {
+                        throw new InvalidDataException("The save file contains an invalid pickup.");
+                    }
+                    pickups.Add(new KeyValuePair<Point, ResourceType>(
+                        new Point(pickup.Tile.X, pickup.Tile.Y), pickup.Type));
+                }
+                map.RestorePickups(pickups);
+            }
+
+            foreach (SavedChest savedChest in save.Chests)
+            {
+                TreasureChest? chest = _dungeonChests.Find(candidate =>
+                    candidate.Tiles[0].X == savedChest.Tile.X &&
+                    candidate.Tiles[0].Y == savedChest.Tile.Y);
+                if (chest == null)
+                {
+                    Console.WriteLine("[Save] Ignored an unavailable chest in the saved world.");
+                    continue;
+                }
+
+                var items = new List<Item>(savedChest.Items.Count);
+                foreach (SavedItem item in savedChest.Items)
+                {
+                    items.Add(new Item(item.Name, item.Quantity));
+                }
+                chest.RestoreItems(items);
+            }
+
+            foreach (List<Enemy> enemies in _enemies.Values)
+            {
+                enemies.Clear();
+            }
+            foreach (SavedEnemy savedEnemy in save.Enemies)
+            {
+                TileMap map = _maps[savedEnemy.Map];
+                var tile = new Point(savedEnemy.Tile.X, savedEnemy.Tile.Y);
+                if (!map.IsWalkable(tile))
+                {
+                    Console.WriteLine($"[Save] Ignored an enemy on an unavailable tile in {savedEnemy.Map}.");
+                    continue;
+                }
+
+                var enemy = new Enemy(tile, TileSize, savedEnemy.MaxHealth)
+                {
+                    IsWaveEnemy = savedEnemy.IsWaveEnemy,
+                    IsHostile = savedEnemy.IsHostile,
+                    Kind = savedEnemy.Kind,
+                    Variant = savedEnemy.Variant,
+                    HearthDamage = savedEnemy.HearthDamage,
+                    MarchTilesPerSecond = savedEnemy.MarchTilesPerSecond,
+                };
+                enemy.TakeDamage(savedEnemy.MaxHealth - savedEnemy.Health);
+                _enemies[savedEnemy.Map].Add(enemy);
+            }
+
+            _inventory.Clear();
+            foreach (SavedItem item in save.Inventory)
+            {
+                _inventory.Add(item.Name, item.Quantity);
+            }
+
+            _questLog.Reset();
+            _bonusQuestInserted = false;
+            if (save.BonusQuestInserted)
+            {
+                InsertBonusQuest();
+            }
+            _questLog.RestoreProgress(save.QuestIndex, save.QuestProgress);
+
+            _stats.RestoreState(save.Health, save.Energy);
+            _hearth.RestoreHealth(save.HearthHealth);
+            _gameState = save.GameState;
+            _dayCount = save.DayCount;
+            _nightNumber = save.NightNumber;
+            _kills = save.Kills;
+            _allNightsSurvived = save.AllNightsSurvived;
+            _hasTalkedToWizard = save.HasTalkedToWizard;
+            _equippedWeaponName = save.EquippedWeaponName != null &&
+                                  ItemCatalog.IsKnown(save.EquippedWeaponName) &&
+                                  _inventory.Has(save.EquippedWeaponName)
+                ? save.EquippedWeaponName
+                : null;
+            _history.ClearForNewDay();
+
+            _map = _maps[save.Map];
+            _camera = new Camera2D(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight,
+                _map.Width,
+                _map.Height,
+                TileSize);
+            Point playerPosition = new(save.PlayerPosition.X, save.PlayerPosition.Y);
+            if (!_map.IsWalkable(playerPosition))
+            {
+                playerPosition = _map.SpawnPoint;
+                Console.WriteLine($"[Save] Player position was unavailable; restored at the {save.Map} entrance.");
+            }
+            _player.RestoreState(playerPosition, save.PlayerFacing);
+
+            var pendingSpawns = new List<EnemySpawnInfo>(save.PendingSpawns.Count);
+            foreach (SavedSpawn spawn in save.PendingSpawns)
+            {
+                pendingSpawns.Add(RestoreSpawn(spawn));
+            }
+            _spawner.RestoreState(pendingSpawns, save.SpawnTimer);
+            _pendingWaveSpawn = save.PendingWaveSpawn == null
+                ? null
+                : RestoreSpawn(save.PendingWaveSpawn);
+
+            _hearthPaths = null;
+            _entryPoints = Array.Empty<Point>();
+            if (_gameState == GameState.Night)
+            {
+                TileMap village = _maps[WorldMapType.Village];
+                _hearthPaths = new HearthPathField(
+                    _hearth.Tiles, village.IsWalkable, village.Width, village.Height);
+                _entryPoints = VillageCollisionLayout.EnemyEntryPoints
+                    .Where(point => _hearthPaths.IsReachable(point))
+                    .ToArray();
+            }
+
+            _pendingTravel = null;
+            _pendingNightStart = false;
+            _openChest = null;
+            _traderOpen = false;
+            _foodShopOpen = false;
+            _inventoryOpen = false;
+            _questPanelOpen = false;
+            _bannerText = string.Empty;
+            _bannerRemaining = 0f;
+            _camera.SnapTo(_player.PixelPosition);
+            PrepareMapVisuals();
+        }
+
+        private static SavedPoint SavePoint(Point point) => new() { X = point.X, Y = point.Y };
+
+        private static SavedSpawn SaveSpawn(EnemySpawnInfo spawn) => new()
+        {
+            Kind = spawn.Kind,
+            Variant = spawn.Variant,
+            SpawnDelaySeconds = spawn.SpawnDelaySeconds,
+            Health = spawn.Health,
+            Speed = spawn.Speed,
+            HearthDamage = spawn.HearthDamage,
+        };
+
+        private static EnemySpawnInfo RestoreSpawn(SavedSpawn spawn) => new(
+            spawn.Kind, spawn.Variant, spawn.SpawnDelaySeconds,
+            spawn.Health, spawn.Speed, spawn.HearthDamage);
+
+        private void InsertBonusQuest()
+        {
+            QuestNode? nightTwoQuest = _questLog.Find(quest =>
+                quest.Kind == QuestKind.SurviveNight &&
+                quest.Target is int night && night == 2);
+            if (nightTwoQuest == null)
+            {
+                throw new InvalidOperationException("The night-two quest is missing.");
+            }
+
+            if (_questLog.Find(quest => quest.Kind == QuestKind.DefeatEnemies) == null)
+            {
+                _questLog.InsertAfterCurrent(
+                    new QuestNode("Defeat 5 enemies", QuestKind.DefeatEnemies, 5, 5),
+                    nightTwoQuest);
+            }
+            _bonusQuestInserted = true;
         }
 
         private void RestoreResourceNodesForNewDay()
@@ -1752,10 +2231,10 @@ namespace TileQuest
         // ---- Title menu and How to Play -------------------------------------
         // Text uses uppercase letters, digits, and punctuation supported by BitmapFont.
 
-        private static readonly (string Label, bool Enabled)[] TitleEntries =
+        private (string Label, bool Enabled)[] TitleEntries => new[]
         {
             ("NEW GAME", true),
-            ("LOAD GAME", false),   // saving is not implemented yet
+            ("LOAD GAME", GameSaveStore.Exists),
             ("HOW TO PLAY", true),
             ("QUIT", true),
         };
@@ -1763,6 +2242,7 @@ namespace TileQuest
         private static readonly (string Label, bool Enabled)[] PauseEntries =
         {
             ("RESUME", true),
+            ("SAVE GAME", true),
             ("HOW TO PLAY", true),
             ("RETURN TO TITLE", true),
             ("QUIT", true),
@@ -1823,11 +2303,15 @@ namespace TileQuest
                         case "RESUME":
                             _screen = GameScreen.Playing;
                             break;
+                        case "SAVE GAME":
+                            SaveGame();
+                            break;
                         case "HOW TO PLAY":
                             _previousMenuScreen = GameScreen.Pause;
                             _screen = GameScreen.HowToPlay;
                             break;
                         case "RETURN TO TITLE":
+                            _titleSelection = 0;
                             _screen = GameScreen.Title;
                             break;
                         case "QUIT":
@@ -1845,6 +2329,12 @@ namespace TileQuest
                 return;
             }
 
+            (string Label, bool Enabled)[] titleEntries = TitleEntries;
+            if (_titleSelection >= titleEntries.Length || !titleEntries[_titleSelection].Enabled)
+            {
+                _titleSelection = 0;
+            }
+
             int stepTitle = 0;
             if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
             {
@@ -1860,22 +2350,21 @@ namespace TileQuest
                 // Skip disabled entries (Load Game) so the cursor never rests on them.
                 do
                 {
-                    _titleSelection = (_titleSelection + stepTitle + TitleEntries.Length) % TitleEntries.Length;
+                    _titleSelection = (_titleSelection + stepTitle + titleEntries.Length) % titleEntries.Length;
                 }
-                while (!TitleEntries[_titleSelection].Enabled);
+                while (!titleEntries[_titleSelection].Enabled);
             }
-            else if (confirm && TitleEntries[_titleSelection].Enabled)
+            else if (confirm && titleEntries[_titleSelection].Enabled)
             {
-                switch (TitleEntries[_titleSelection].Label)
+                switch (titleEntries[_titleSelection].Label)
                 {
                     case "NEW GAME":
-                        // The world is already freshly built at launch, so starting
-                        // just hands control to the game.
-                        _questLog.Reset();
-                        _questPanelOpen = false;
-                        _bonusQuestInserted = false;
-                        _hasTalkedToWizard = false;
+                        ResetGame();
+                        _menuMessage = string.Empty;
                         _screen = GameScreen.Playing;
+                        break;
+                    case "LOAD GAME":
+                        LoadGame();
                         break;
                     case "HOW TO PLAY":
                         _previousMenuScreen = GameScreen.Title;
@@ -1945,6 +2434,12 @@ namespace TileQuest
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, label, new Point(row.X + 16, row.Y + 9), 3, color);
             }
 
+            if (_menuMessage.Length > 0)
+            {
+                DrawCenteredText(viewport, _menuMessage, panel.Bottom + 14, 1,
+                    _menuMessage.Contains("FAILED", StringComparison.Ordinal) ? Color.IndianRed : Color.LightGreen);
+            }
+
             float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
             DrawCenteredText(viewport, "W/S SELECT    ENTER CONFIRM    ESC RESUME", viewport.Height - 44, 1, Color.LightGray * pulse);
         }
@@ -1959,13 +2454,14 @@ namespace TileQuest
 
             const int rowHeight = 44;
             const int panelWidth = 360;
-            int panelHeight = TitleEntries.Length * rowHeight + 20;
+            (string Label, bool Enabled)[] entries = TitleEntries;
+            int panelHeight = entries.Length * rowHeight + 20;
             var panel = new Rectangle((viewport.Width - panelWidth) / 2, 240, panelWidth, panelHeight);
             DrawHudPanel(panel);
 
-            for (int i = 0; i < TitleEntries.Length; i++)
+            for (int i = 0; i < entries.Length; i++)
             {
-                (string label, bool enabled) = TitleEntries[i];
+                (string label, bool enabled) = entries[i];
                 bool selected = i == _titleSelection;
                 var row = new Rectangle(panel.X + 10, panel.Y + 10 + i * rowHeight, panel.Width - 20, rowHeight - 6);
                 _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
@@ -1975,8 +2471,14 @@ namespace TileQuest
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, label, new Point(row.X + 16, row.Y + 9), 3, color);
                 if (!enabled)
                 {
-                    BitmapFont.Draw(_spriteBatch, _pixelTexture, "SOON", new Point(row.Right - 16 - 4 * 6 * 2, row.Y + 14), 2, color);
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, "NO SAVE", new Point(row.Right - 16 - 7 * 6 * 2, row.Y + 14), 2, color);
                 }
+            }
+
+            if (_menuMessage.Length > 0)
+            {
+                DrawCenteredText(viewport, _menuMessage, panel.Bottom + 14, 1,
+                    _menuMessage.Contains("FAILED", StringComparison.Ordinal) ? Color.IndianRed : Color.LightGreen);
             }
 
             float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
@@ -2109,6 +2611,7 @@ namespace TileQuest
                 ("U - UNDO LAST CRAFT IN THE DAY", Color.White),
                 ("Y OR ENTER - CONFIRM    N OR ESC - CANCEL", Color.White),
                 ("ESC - PAUSE MENU", Color.White),
+                ("PAUSE MENU - SAVE GAME    TITLE - LOAD GAME", Color.White),
                 ("", Color.White),
                 ("TIPS", Color.Gold),
                 ("HIT STUMPS AND BOULDERS FOR WOOD AND STONE.", Color.White),

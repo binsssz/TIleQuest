@@ -14,6 +14,7 @@ namespace TileQuest
 
         public int RemainingInWave => _pendingSpawns.Count;
         public bool IsWaveComplete => _pendingSpawns.Count == 0;
+        public float TimeUntilNextSpawn => _timeUntilNextSpawn;
 
         private const float SpawnDelaySeconds = 1.5f;
 
@@ -94,6 +95,25 @@ namespace TileQuest
         {
             _pendingSpawns.Clear();
             _timeUntilNextSpawn = 0f;
+        }
+
+        public IReadOnlyList<EnemySpawnInfo> GetPendingSpawns() => _pendingSpawns.ToArray();
+
+        public void RestoreState(IEnumerable<EnemySpawnInfo> pendingSpawns, float timeUntilNextSpawn)
+        {
+            if (float.IsNaN(timeUntilNextSpawn) || float.IsInfinity(timeUntilNextSpawn) ||
+                timeUntilNextSpawn < 0f)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(timeUntilNextSpawn), timeUntilNextSpawn, "The saved spawn timer is invalid.");
+            }
+
+            _pendingSpawns.Clear();
+            foreach (EnemySpawnInfo spawn in pendingSpawns)
+            {
+                _pendingSpawns.Enqueue(spawn);
+            }
+            _timeUntilNextSpawn = _pendingSpawns.Count == 0 ? 0f : timeUntilNextSpawn;
         }
 
         // Call every frame during NightPhase. Returns the next enemy to

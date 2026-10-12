@@ -127,6 +127,7 @@ namespace TileQuest
         public int Height { get; }
         public int TileSize { get; }
         public WorldMapType MapType { get; }
+        public int ForestSeed { get; }
         public Point SpawnPoint { get; }
         public bool IsFullyConnected { get; }
         public IReadOnlyList<VillageStructure> VillageStructures { get; }
@@ -141,16 +142,19 @@ namespace TileQuest
         private readonly Dictionary<Point, ResourceType> _pickups = new();
 
         public TileMap(int width, int height, int tileSize)
-            : this(width, height, tileSize, WorldMapType.Village)
+            : this(width, height, tileSize, WorldMapType.Village, null)
         {
         }
 
-        public TileMap(int width, int height, int tileSize, WorldMapType mapType)
+        public TileMap(int width, int height, int tileSize, WorldMapType mapType, int? forestSeed = null)
         {
             Width = width;
             Height = height;
             TileSize = tileSize;
             MapType = mapType;
+            ForestSeed = mapType == WorldMapType.Forest
+                ? forestSeed ?? Random.Shared.Next()
+                : 0;
 
             if (mapType == WorldMapType.Village)
             {
@@ -172,7 +176,7 @@ namespace TileQuest
             else if (mapType == WorldMapType.Forest)
             {
                 _tiles = ForestGenerator.Generate(
-                    width, height, new Random(), out var forestSpawn, out var forestProps);
+                    width, height, new Random(ForestSeed), out var forestSpawn, out var forestProps);
                 SpawnPoint = forestSpawn;
                 VillageStructures = Array.Empty<VillageStructure>();
                 _props.AddRange(forestProps);
@@ -274,6 +278,55 @@ namespace TileQuest
             }
 
             return restoredAny;
+        }
+
+        public IReadOnlyList<(Point Tile, int HitsRemaining)> GetResourceNodeStates()
+        {
+            var states = new List<(Point Tile, int HitsRemaining)>(_resourceNodes.Count);
+            foreach (ResourceNode node in _resourceNodes.Values)
+            {
+                states.Add((node.Tile, node.HitsRemaining));
+            }
+            return states;
+        }
+
+        public bool RestoreResourceNodeHits(Point tile, int hitsRemaining)
+        {
+            if (!_resourceNodes.TryGetValue(tile, out ResourceNode? node) ||
+                hitsRemaining < 0 ||
+                hitsRemaining > node.MaxHits)
+            {
+                return false;
+            }
+
+            while (node.HitsRemaining > hitsRemaining)
+            {
+                node.Hit();
+            }
+
+            if (node.IsDepleted)
+            {
+                _tiles[tile] = TileType.Grass;
+                _props.Remove(new VillageProp(node.Prop, node.Tile));
+            }
+
+            return true;
+        }
+
+        public void RestorePickups(IEnumerable<KeyValuePair<Point, ResourceType>> pickups)
+        {
+            _pickups.Clear();
+            foreach (KeyValuePair<Point, ResourceType> pickup in pickups)
+            {
+                if (pickup.Key.X < 0 || pickup.Key.X >= Width ||
+                    pickup.Key.Y < 0 || pickup.Key.Y >= Height ||
+                    !Enum.IsDefined(pickup.Value))
+                {
+                    throw new ArgumentException("A saved pickup is outside the map or has an unknown resource type.", nameof(pickups));
+                }
+
+                _pickups[pickup.Key] = pickup.Value;
+            }
         }
 
         // Iron and gold on the floor: walking onto the tile collects it.

@@ -81,6 +81,17 @@ namespace TileQuest
             _attackBufferRemaining = 0f;
         }
 
+        public void RestoreState(Point gridPosition, FacingDirection facing)
+        {
+            if (!Enum.IsDefined(facing))
+            {
+                throw new ArgumentOutOfRangeException(nameof(facing), facing, "Saved facing direction is invalid.");
+            }
+
+            Teleport(gridPosition);
+            Facing = facing;
+        }
+
         public Point FacingVector => Facing switch
         {
             FacingDirection.Up => new Point(0, -1),

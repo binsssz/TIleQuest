@@ -32,5 +32,11 @@ namespace TileQuest
             _items.RemoveAt(index);
             return item;
         }
+
+        public void RestoreItems(IEnumerable<Item> items)
+        {
+            _items.Clear();
+            _items.AddRange(items);
+        }
     }
 }

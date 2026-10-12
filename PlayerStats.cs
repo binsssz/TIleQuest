@@ -29,6 +29,7 @@ namespace TileQuest
 
         public int Health { get; private set; } = MaxHealth;
         public int Energy => (int)MathF.Ceiling(_energy);
+        public float EnergyAmount => _energy;
 
         public bool IsDead => Health <= 0;
         public bool IsInvulnerable => _invulnerableRemaining > 0f;
@@ -69,6 +70,23 @@ namespace TileQuest
         {
             Health = MaxHealth;
             _energy = MaxEnergy;
+            _healthRegenProgress = 0f;
+            _healDelayRemaining = 0f;
+            _invulnerableRemaining = 0f;
+            HurtFlashRemaining = 0f;
+        }
+
+        public void RestoreState(int health, float energy)
+        {
+            if (health < 0 || health > MaxHealth ||
+                float.IsNaN(energy) || float.IsInfinity(energy) ||
+                energy < 0f || energy > MaxEnergy)
+            {
+                throw new ArgumentOutOfRangeException(nameof(health), "Saved health or energy is outside its valid range.");
+            }
+
+            Health = health;
+            _energy = energy;
             _healthRegenProgress = 0f;
             _healDelayRemaining = 0f;
             _invulnerableRemaining = 0f;

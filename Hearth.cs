@@ -48,6 +48,15 @@ namespace TileQuest
             Health = MaxHealth;
         }
 
+        public void RestoreHealth(int health)
+        {
+            if (health < 0 || health > MaxHealth)
+            {
+                throw new ArgumentOutOfRangeException(nameof(health), health, "Saved hearth health is outside its valid range.");
+            }
+            Health = health;
+        }
+
         public bool Contains(Point tile)
         {
             return Array.IndexOf(_tiles, tile) >= 0;
