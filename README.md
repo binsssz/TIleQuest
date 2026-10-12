@@ -4,6 +4,10 @@ TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms 
 
 ## Current Implementation
 
+### Start menu
+
+- The game opens on a title screen drawn over the dimmed village (the world is frozen behind it). `W`/`S` or the arrows move, `Enter` / `E` / `Space` confirm, `Esc` quits. **New Game** starts playing, **How to Play** shows the controls and goal, **Quit** exits. **Load Game** is listed but disabled until saving exists. The menus use `GameScreen` (`Title`, `HowToPlay`, `Playing`), separate from the Day/Night `GameState`.
+
 ### World and navigation
 
 - **Village:** A 48 × 36 collision grid (`CollisionMapLayouts.cs`) rendered with `Assets/village_ground.png` as the base, `Assets/village_objects_ground_decor.png` behind actors, and `Assets/village_objects_main.png` over actors. Buildings, props, and the pond block movement; the wizard is the forest travel point.

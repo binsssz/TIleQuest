@@ -72,6 +72,8 @@ namespace TileQuest
         private const float NightDimAlpha = 0.5f;
         private const float BannerSeconds = 3f;
         private GameState _gameState = GameState.Day;
+        private GameScreen _screen = GameScreen.Title;   // the game opens on the title menu
+        private int _titleSelection;
         private int _dayCount = 1;
         private int _nightNumber;                        // 0 until the first night starts
         private int _kills;                              // wave enemies defeated (Milestone 4 score)
@@ -1175,7 +1177,7 @@ namespace TileQuest
                 }
             }
 
-            const int visibleRows = 9;
+            const int visibleRows = 10;
             _inventoryScroll = Math.Clamp(_inventoryScroll, 0, Math.Max(0, entries.Count - visibleRows));
             if (_inventorySelection < _inventoryScroll)
             {
@@ -1192,8 +1194,8 @@ namespace TileQuest
             List<(string Name, ItemCategory Category, int Quantity)> entries = GetInventoryEntries();
             Viewport viewport = GraphicsDevice.Viewport;
             const int panelMargin = 36;
-            const int rowHeight = 54;
-            const int visibleRows = 9;
+            const int rowHeight = 42;
+            const int visibleRows = 10;
             var panel = new Rectangle(
                 panelMargin,
                 panelMargin,
@@ -1222,11 +1224,11 @@ namespace TileQuest
                     row,
                     selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
                 DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
-                DrawInventoryItemIcon(entry.Name, new Rectangle(row.X + 8, row.Y + 1, 48, 48));
+                DrawInventoryItemIcon(entry.Name, new Rectangle(row.X + 8, row.Y + 6, 24, 24));
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
                     entry.Name.ToUpperInvariant(),
-                    new Point(row.X + 64, row.Y + 7), 2, Color.White);
+                    new Point(row.X + 42, row.Y + 7), 2, Color.White);
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
                     entry.Category.ToString().ToUpperInvariant(),
@@ -1269,6 +1271,15 @@ namespace TileQuest
             if (WasPressed(keyboard, Keys.F3))
             {
                 _showHitboxes = !_showHitboxes;
+            }
+
+            if (_screen != GameScreen.Playing)
+            {
+                // Title / How to Play: menu input only, the world stays frozen.
+                UpdateMenuScreen(keyboard);
+                _previousKeyboard = keyboard;
+                base.Update(gameTime);
+                return;
             }
 
             if (_pendingTravel is MapTravel travel)
@@ -1475,6 +1486,14 @@ namespace TileQuest
                 DrawNightOverlay(gameTime);
             }
 
+            if (_screen != GameScreen.Playing)
+            {
+                // The village (already drawn above) shows through a dim overlay.
+                DrawMenuScreen(gameTime);
+                base.Draw(gameTime);
+                return;
+            }
+
             DrawInventoryHud();
             DrawDayNightHud();
 
@@ -1635,6 +1654,173 @@ namespace TileQuest
             _spriteBatch.End();
         }
 
+        // ---- Title menu and How to Play -------------------------------------
+        // Text uses only glyphs BitmapFont has: letters, digits and : + - / . | = ?
+        // (no commas, apostrophes, brackets or exclamation marks).
+
+        private static readonly (string Label, bool Enabled)[] TitleEntries =
+        {
+            ("NEW GAME", true),
+            ("LOAD GAME", false),   // saving is not implemented yet
+            ("HOW TO PLAY", true),
+            ("QUIT", true),
+        };
+
+        private void UpdateMenuScreen(KeyboardState keyboard)
+        {
+            bool confirm = WasPressed(keyboard, Keys.Enter) || WasPressed(keyboard, Keys.E) || WasPressed(keyboard, Keys.Space);
+
+            if (_screen == GameScreen.HowToPlay)
+            {
+                if (confirm || WasPressed(keyboard, Keys.Escape))
+                {
+                    _screen = GameScreen.Title;
+                }
+                return;
+            }
+
+            if (WasPressed(keyboard, Keys.Escape))
+            {
+                Exit();
+                return;
+            }
+
+            int step = 0;
+            if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
+            {
+                step = -1;
+            }
+            else if (WasPressed(keyboard, Keys.Down) || WasPressed(keyboard, Keys.S))
+            {
+                step = 1;
+            }
+
+            if (step != 0)
+            {
+                // Skip disabled entries (Load Game) so the cursor never rests on them.
+                do
+                {
+                    _titleSelection = (_titleSelection + step + TitleEntries.Length) % TitleEntries.Length;
+                }
+                while (!TitleEntries[_titleSelection].Enabled);
+            }
+            else if (confirm && TitleEntries[_titleSelection].Enabled)
+            {
+                switch (TitleEntries[_titleSelection].Label)
+                {
+                    case "NEW GAME":
+                        // The world is already freshly built at launch, so starting
+                        // just hands control to the game.
+                        _screen = GameScreen.Playing;
+                        break;
+                    case "HOW TO PLAY":
+                        _screen = GameScreen.HowToPlay;
+                        break;
+                    case "QUIT":
+                        Exit();
+                        break;
+                }
+            }
+        }
+
+        private void DrawMenuScreen(GameTime gameTime)
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, viewport.Bounds, new Color(10, 10, 14) * 0.65f);
+
+            if (_screen == GameScreen.HowToPlay)
+            {
+                DrawHowToPlay(viewport);
+            }
+            else
+            {
+                DrawTitle(viewport, gameTime);
+            }
+
+            _spriteBatch.End();
+        }
+
+        private void DrawCenteredText(Viewport viewport, string text, int y, int scale, Color color)
+        {
+            int x = (viewport.Width - text.Length * 6 * scale) / 2;
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, text, new Point(x, y), scale, color);
+        }
+
+        private void DrawTitle(Viewport viewport, GameTime gameTime)
+        {
+            const string title = "TILEQUEST";
+            int titleX = (viewport.Width - title.Length * 6 * 8) / 2;
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX + 5, 95 + 5), 8, Color.Black * 0.8f);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX, 95), 8, Color.Gold);
+            DrawCenteredText(viewport, "DEFEND THE HEARTH FOR FIVE NIGHTS", 170, 2, Color.Wheat);
+
+            const int rowHeight = 44;
+            const int panelWidth = 360;
+            int panelHeight = TitleEntries.Length * rowHeight + 20;
+            var panel = new Rectangle((viewport.Width - panelWidth) / 2, 240, panelWidth, panelHeight);
+            DrawHudPanel(panel);
+
+            for (int i = 0; i < TitleEntries.Length; i++)
+            {
+                (string label, bool enabled) = TitleEntries[i];
+                bool selected = i == _titleSelection;
+                var row = new Rectangle(panel.X + 10, panel.Y + 10 + i * rowHeight, panel.Width - 20, rowHeight - 6);
+                _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+
+                Color color = !enabled ? new Color(110, 104, 98) : selected ? Color.White : Color.Wheat;
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, label, new Point(row.X + 16, row.Y + 9), 3, color);
+                if (!enabled)
+                {
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, "SOON", new Point(row.Right - 16 - 4 * 6 * 2, row.Y + 14), 2, color);
+                }
+            }
+
+            float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
+            DrawCenteredText(viewport, "W/S SELECT    ENTER CONFIRM    ESC QUIT", viewport.Height - 44, 1, Color.LightGray * pulse);
+        }
+
+        private void DrawHowToPlay(Viewport viewport)
+        {
+            var lines = new (string Text, Color Color)[]
+            {
+                ("GOAL", Color.Gold),
+                ("SURVIVE FIVE NIGHTS AND KEEP THE HEARTH ALIVE.", Color.White),
+                ("BY DAY GATHER AND CRAFT. BY NIGHT DEFEND THE HEARTH.", Color.White),
+                ("", Color.White),
+                ("CONTROLS", Color.Gold),
+                ("WASD OR ARROWS - MOVE", Color.White),
+                ("SPACE OR J - SWING AT NODES AND ENEMIES", Color.White),
+                ("E - TALK / USE / OPEN BAG    I - BAG SORTED BY VALUE", Color.White),
+                ("U - UNDO LAST CRAFT IN THE DAY", Color.White),
+                ("Y OR ENTER - CONFIRM    N OR ESC - CANCEL", Color.White),
+                ("", Color.White),
+                ("TIPS", Color.Gold),
+                ("HIT STUMPS AND BOULDERS FOR WOOD AND STONE.", Color.White),
+                ("THE TRADER CRAFTS WEAPONS. THE VENDOR SELLS FOOD FOR GOLD.", Color.White),
+                ("STAND BESIDE THE HEARTH AND PRESS E TO START A NIGHT.", Color.White),
+            };
+
+            const int lineHeight = 26;
+            int panelWidth = 780;
+            int panelHeight = 86 + lines.Length * lineHeight;
+            var panel = new Rectangle((viewport.Width - panelWidth) / 2, (viewport.Height - panelHeight) / 2, panelWidth, panelHeight);
+            DrawHudPanel(panel);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "HOW TO PLAY", new Point(panel.X + 20, panel.Y + 16), 3, Color.Wheat);
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture, lines[i].Text,
+                    new Point(panel.X + 20, panel.Y + 58 + i * lineHeight), 2, lines[i].Color);
+            }
+
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture, "ENTER OR ESC - BACK",
+                new Point(panel.X + 20, panel.Bottom - 22), 1, Color.Wheat);
+        }
+
         private void DrawNightPrompt()
         {
             const int boxWidth = 340;
@@ -1668,7 +1854,7 @@ namespace TileQuest
             DrawPlayerStatsHud(viewport);
 
             const int slotWidth = 32;
-            const int slotHeight = 48;
+            const int slotHeight = 32;
             const int slotGap = 3;
             const int originX = 12;
             const int originY = 10;
@@ -1692,7 +1878,7 @@ namespace TileQuest
                     _spriteBatch.Draw(_pixelTexture, slotBounds, new Color(32, 25, 20, 235));
                     DrawHudBorder(slotBounds, new Color(156, 119, 69));
 
-                    DrawInventoryItemIcon(type, new Rectangle(x, slotY + 1, 32, 32));
+                    DrawInventoryItemIcon(type, new Rectangle(x + (slotWidth - 16) / 2, slotY + 4, 16, 16));
 
                     string quantityText = qty.ToString();
                     int quantityWidth = quantityText.Length * 6;
@@ -1932,8 +2118,8 @@ namespace TileQuest
                 "IRON" => new Rectangle(0, 32, 16, 16),
                 "GOLD" => new Rectangle(48, 32, 16, 16),
                 "BONE" => new Rectangle(64, 272, 16, 16),
-                "WOODEN SWORD" => new Rectangle(32, 128, 16, 16),
-                "STONE SWORD" => new Rectangle(16, 128, 16, 16),
+                "WOODEN CLUB" => new Rectangle(32, 128, 16, 16),
+                "STONE MACE" => new Rectangle(16, 128, 16, 16),
                 "IRON SWORD" => new Rectangle(0, 128, 16, 16),
                 "GOLD BLADE" => new Rectangle(48, 128, 16, 16),
                 "BREAD" => new Rectangle(64, 80, 16, 16),
