@@ -2,7 +2,7 @@
 
 - **Name:** TileQuest — Forest Village RPG.
 - **Purpose:** C# / MonoGame DSA course project.
-- **Current state:** Playable village, forest, and dungeon prototype with map travel, basic melee combat, and an active linked-list quest log. DSA startup checks cover Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search.
+- **Current state:** Complete, playable village, forest, and dungeon game with map travel, melee combat, a five-night hearth-defense loop, crafting with undo, a food vendor, a linked-list quest log, save/load, and Victory/Defeat ending screens. DSA startup checks cover Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search.
 - **Target framework:** .NET 8 (`net8.0`).
 - **Game framework:** `MonoGame.Framework.DesktopGL` 3.8.x.
 - **Project file:** `TileQuest.csproj`.
@@ -17,23 +17,26 @@
 - Movement is four-directional, grid-locked, smoothly interpolated, and collision checked. The camera follows the player.
 - `Space` or `J` performs a melee swing. Forest and dungeon enemies are hostile (`Enemy.IsHostile`): within `HostileAggroTiles` (7) walking tiles they chase the player (BFS over walkable tiles, `Game1.UpdateHostileEnemies`) and attack with the same dodgeable wind-up / impact / recovery swing as the night wave (1.0 s cycle, damage = `HearthDamage` × `PlayerDamageScale`). Dying in the forest or dungeon returns the player to the village at full health.
 - Day/night: beside the village hearth (a praying-woman statue standing on a round stone platform on the central plaza, both from `Assets/TX Props.png`; the statue's 2×2 base at top-left tile `(24, 19)` is blocked for movement and the platform is walkable floor; at night a warm additive glow marks the hearth and fades as its HP drops), `E` then `Y`/`Enter` starts the next night (of 5). `WaveSpawner` dequeues a mix of goblins and skeletons (interleaved; the skeleton share grows each night and the Warrior/Rogue/Mage variants unlock on nights 2/3/4) on its timer at `VillageCollisionLayout.EnemyEntryPoints`; they follow a BFS distance field (`HearthPathField`) to the hearth and strike it (`Hearth`, 100 HP, persists between nights). Clearing the wave returns to day, advances the day count, and regrows harvested nodes. If the hearth is destroyed the Defeat ending screen opens (see "Ending screens" below). A top-centre HUD shows day/night, foes left, and hearth HP. Marching goblins use the orc run sheet (`Assets/Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png`) and face their direction of travel; standing goblins use the idle sheet and face the hearth. Skeletons (`Assets/Entities/Mobs/Skeleton Crew/Skeleton - {Base,Warrior,Rogue,Mage}`, same sheet layout as the orc) carry the bone spear from `Assets/Weapons/bone/bone.png`, march and attack the hearth the same way, with per-variant health, speed and hearth damage from `SkeletonStats` in `EnemyKind.cs`. Wave enemies attack in a wind-up / impact / recovery cycle (`Enemy.TryBeginAttack`, `Enemy.ConsumeImpact`; swing `AttackSwingSeconds` = 0.45 s, impact at 60% of the swing) and start a new swing once per `EnemyAttackCycleSeconds` (1.0 s, measured from the start of one swing to the start of the next). Damage is applied only at the impact moment, and only if the target is still adjacent then, so a player who steps away before the impact dodges the hit; hitting an enemy (stun) or killing it cancels its swing without resetting its cooldown. A swinging enemy stands still and faces its target; the swing is animated in `Game1.DrawEnemy` only (back-lean and red tint during the wind-up, an 8 px lunge and a short slash arc at impact, raised goblin hands), since the mob folders have no attack sheets. A wave enemy standing next to the player attacks the player instead of the hearth (its hearth damage × `PlayerDamageScale`, currently 1, so 3 for a goblin and 3 to 5 for skeletons; hearth damage is unscaled); the player's death loses the night like a destroyed hearth (`FailNight(..., playerFell: true)`, which opens the Defeat ending). The village wizard is disabled at night.
-- A screen-space HUD shows red health and blue energy bars at the lower left and a two-row inventory HUD at the top left (row 1: weapons then food, row 2: resources; one icon + quantity slot per owned item, in fixed catalog order unless sorted by value with `I`). The bars are driven by `PlayerStats`: energy is a hunger-style bar that drains slowly, is not spent on swings, and fuels healing (health regenerates a few seconds after the last hit, burning energy; no healing at 0 energy). Dawn calls `RestoreFully`, a stand-in until food exists.
+- A screen-space HUD shows red health and blue energy bars at the lower left and a two-row inventory HUD at the top left (row 1: weapons then food, row 2: resources; one icon + quantity slot per owned item, in fixed catalog order unless sorted by value with `I`). The bars are driven by `PlayerStats`: energy is a hunger-style bar that drains slowly, is not spent on swings, and fuels healing (health regenerates a few seconds after the last hit, burning energy; no healing at 0 energy). Health and energy carry over at dawn; `RestoreFully` runs only when the player falls in the forest or dungeon (`Game1.FallInTheWilds`) and in `ResetGame`. Eating food restores energy.
 - The quest log is a hand-written singly linked list. Its default chain tracks 10 Wood, 5 Stone, a crafted weapon, and survival of Nights 1–5; surviving Night 2 inserts a five-enemy objective before Night 3. The player must talk to the wizard and complete the gather-and-craft objectives before starting Night 1. The current objective appears in the HUD, and `Q` toggles the non-modal ordered quest panel.
-- The game launches on a title menu (`GameScreen.Title`): New Game, Load Game (disabled until saving exists), How to Play, Quit. It draws over the dimmed village, and `Update` only handles menu input until `GameScreen.Playing`.
-- Press `I` to open the full inventory menu, or `E` when no nearby world interaction applies. `W`/`S` or the arrow keys select grouped items; `Enter` equips the selected crafted weapon, `D` discards one unit, and `Esc` closes the menu. Food use is deferred until food items exist; `PlayerStats.RestoreEnergy` is the hook for them.
-- Day trader: the tavern woman (`Assets/Entities/Npc's/Citizen_F/Tavern_A/Idle/Idle_Side-Sheet.png`) stands in the blocked forge-area tile `VillageCollisionLayout.TraderPosition` (15, 25). Beside her, `E` opens a menu of `RecipeBook.SortedByCost` (4 weapons, each recipe's cost being the market value of its ingredients). `W`/`S` select, `E` crafts, `Esc` closes. Weapon icons from `Assets/Free_Icons_all_16x16.png` appear beside recipes and in inventory slots. The highlighted cost is resolved to its recipe with `BinarySearchUtil.FindByKey` (`RecipeBook.FindByCost`). Crafting spends materials from `Inventory` with the atomic `TrySpend`, adds a `Weapon`-category item, and pushes a `PlayerAction` onto `ActionHistory`. `U` (day only) undoes the latest craft: the weapon is removed (exactly what `PlayerAction.Created` lists), materials refunded (exactly `PlayerAction.Spent`); history clears at dawn. The strongest crafted weapon adds its `Power` to `SwingDamage` and is shown above the inventory. Food-based energy refills are deferred until food items are added.
+- The game launches on a title menu (`GameScreen.Title`): New Game, Load Game (enabled when a save file exists), How to Play, Quit. It draws over the dimmed village, and `Update` only handles menu input until `GameScreen.Playing`.
+- Press `I` to open the full inventory menu, or `E` when no nearby world interaction applies. `W`/`S` or the arrow keys select grouped items; `Enter` equips the selected crafted weapon, `D` discards one unit, and `Esc` closes the menu. Selecting a food item in the menu and pressing `Enter` eats it (`FoodShop.TryEat`), restoring energy through `PlayerStats.RestoreEnergy`.
+- Day trader: the tavern woman (`Assets/Entities/Npc's/Citizen_F/Tavern_A/Idle/Idle_Side-Sheet.png`) stands in the blocked forge-area tile `VillageCollisionLayout.TraderPosition` (14, 25). Beside her, `E` opens a menu of `RecipeBook.SortedByCost` (4 weapons, each recipe's cost being the market value of its ingredients). `W`/`S` select, `E` crafts, `Esc` closes. Weapon icons from `Assets/Free_Icons_all_16x16.png` appear beside recipes and in inventory slots. The highlighted cost is resolved to its recipe with `BinarySearchUtil.FindByKey` (`RecipeBook.FindByCost`). Crafting spends materials from `Inventory` with the atomic `TrySpend`, adds a `Weapon`-category item, and pushes a `PlayerAction` onto `ActionHistory`. `U` (day only) undoes the latest craft: the weapon is removed (exactly what `PlayerAction.Created` lists), materials refunded (exactly `PlayerAction.Spent`); history clears at dawn. The strongest crafted weapon adds its `Power` to `SwingDamage` and is shown above the inventory.
+- Food vendor: stands at `FoodVendorTile` (32, 29) in the village. `E` beside her opens a menu of `FoodBook.SortedByPrice` (Bread 1 Gold/+20 energy, Stew 2/+40, Roast Meat 3/+65, Pie 4/+90). `W`/`S` select, `E` or `Enter` buys (`FoodShop.TryBuy`), `Esc` closes. The highlighted price is resolved to its item with `BinarySearchUtil.FindByKey` (`FoodBook.FindByPrice`).
+- Treasure chests (`TreasureChest.cs`) sit on the dungeon map; `Game1.TryOpenNearbyChest` opens a popup where items can be taken.
+- Save/load: `Esc` opens the pause menu (Resume, Save Game, How to Play, Return to Title, Quit). `Game1.SaveGame` / `CaptureGameState` write `GameSave.cs` data to `%LOCALAPPDATA%\TileQuest\savegame.json`; `LoadGame` validates it and `RestoreGameState` restores inventory, quests, stats, location, resources, chests, enemies, and active night-wave progress.
 - `F3` toggles the hitbox/debug overlay.
 - Startup runs `TileGraph` connectivity checks and `DsaDemo` self-checks for Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search.
 - The Dictionary-backed inventory remains the game's item storage, and graph/BFS code supports map connectivity and night enemy pathfinding. No dungeon puzzle is implemented.
 
-Do not describe dungeon puzzles, bosses, endings, or high scores as shipped unless later code changes implement them.
+Victory and Defeat endings are shipped. Do not describe dungeon puzzles, bosses, a score or leaderboard, or an evacuation ending as shipped unless later code changes implement them.
 
 ## Important code map
 
 | File | Responsibility |
 | --- | --- |
 | `Program.cs` | Runs DSA self-check, creates the game, and reports startup errors |
-| `Game1.cs` | MonoGame lifecycle, asset loading, map travel, input, combat, and drawing |
+| `Game1.cs` | MonoGame lifecycle, asset loading, map travel, input, combat, night defense, menus, endings, save/load, and drawing |
 | `Quest.cs`, `QuestLog.cs` | Hand-written singly linked quest nodes, event progress, catch-up, and default chain |
 | `LinearSearchUtil.cs` | Generic index-by-index search used for melee targets and nearby interactables |
 | `Player.cs` | Grid movement, smooth interpolation, facing, animation, and melee swing |
@@ -53,7 +56,11 @@ Do not describe dungeon puzzles, bosses, endings, or high scores as shipped unle
 | `ActionHistory.cs`, `PlayerAction.cs` | LIFO undo-history module; drives crafting undo (`U`) |
 | `Crafting.cs`, `RecipeBook.cs`, `CraftingRecipe.cs` | Trader weapon-crafting rules, the cost-sorted recipe book, and the best-weapon lookup |
 | `Inventory.cs`, `Item.cs` | Dictionary inventory (`Add`, `TryRemove`, `Count`, `Has`, atomic `TrySpend`, `GetItems(category)`), `ItemCatalog` (category + market value per item), and a sorted snapshot |
-| `BinarySearchUtil.cs` | Binary-search utility used by `RecipeBook.FindByCost` |
+| `Foodbook.cs`, `Foodshop.cs` | Price-sorted food menu (`FoodBook.FindByPrice`), buying, and eating for energy |
+| `TreasureChest.cs` | Dungeon chests and their items |
+| `resourcenode.cs`, `resourcelayout.cs` | Harvestable resource nodes and their placement |
+| `GameSave.cs` | Save-file data model for save/load |
+| `BinarySearchUtil.cs` | Binary-search utility used by `RecipeBook.FindByCost` and `FoodBook.FindByPrice` |
 | `InsertionSortUtil.cs` | Generic descending insertion sort |
 | `TileSprites.cs`, `pathcorners.cs`, `Draw*.cs` | Sprite source rectangles and world object rendering |
 
@@ -128,21 +135,20 @@ This roadmap outlines the step-by-step implementation plan for the remaining 4-d
 
 ---
 
-### Milestone 4: Value Sorting, End Game States, Leaderboard & Final Verification (Day 4)
-**Primary Focus:** Add inventory organization, ending triggers, leaderboard sorting, and the full rubric verification sweep.
+### Milestone 4: Value Sorting, End Game States & Final Verification (Day 4)
+**Primary Focus:** Add inventory organization, ending triggers, and the full rubric verification sweep.
 
-* **Target Files:** `InsertionSortUtil.cs`, `Inventory.cs`, `Leaderboard.cs`, `Game1.cs`, `DsaDemo.cs`, `Program.cs`, `README.md`.
+* **Target Files:** `InsertionSortUtil.cs`, `Inventory.cs`, `Game1.cs`, `DsaDemo.cs`, `Program.cs`, `README.md`.
 * **DSA Modules:** Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, and Linear Search; `DsaDemo.Run()` validates them at startup.
 * **Implementation Steps:**
   1. Wire the **'I'** key to execute `InsertionSortUtil.SortDescending()` on each inventory row (weapons+food, resources) via `Inventory.GetItems`, organizing bag items by market value; the sorted order lasts until the next inventory change or until `I` is pressed again in the menu.
   2. Implement game-over state checks:
      * **Victory:** Clearing Night 5 wave queue.
      * **Defeat:** Hearth HP or Player HP dropping to 0.
-     * **Evacuation:** Interacting with the secret forest cave gate during a losing night.
-  3. Calculate the final run score ($\text{Hearth HP} \times 100 + \text{Gold} \times 10 + \text{Kills} \times 50$).
-  4. Pass the final score into `Leaderboard.AddScore()` and run `InsertionSortUtil` to rank top scores.
-  5. Run automated DSA checks via `DsaDemo.Run()` at startup, verify all 6 modules (Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, Linear Search) with $0$ console errors, and perform a final build run under the .NET 8 DesktopGL profile.
-* **Verification:** Pressing 'I' sorts bag contents by value, all 3 game endings log the final score accurately to the sorted leaderboard, and the startup self-check plus build pass cleanly before the game opens.
+     * **Evacuation:** *(Not implemented; dropped from scope.)*
+  3. *(Not implemented; dropped from scope.)* A final run score and `Leaderboard.AddScore()`. The ending screens show a stats summary instead.
+  4. Run automated DSA checks via `DsaDemo.Run()` at startup, verify all 6 modules (Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, Linear Search) with $0$ console errors, and perform a final build run under the .NET 8 DesktopGL profile.
+* **Verification:** Pressing 'I' sorts bag contents by value, both implemented endings (Victory and Defeat) open correctly with an accurate summary, and the startup self-check plus build pass cleanly before the game opens.
 
 ---
 
@@ -156,6 +162,6 @@ This roadmap outlines the step-by-step implementation plan for the remaining 4-d
 
 ### Sprint Success Criteria (4-Day Delivery)
 - All DSA modules are wired into active gameplay and remain distinct from the underlying game systems.
-- The project proves a complete loop: gather resources -> survive nights -> craft/undo -> sort inventory -> end the run with a score.
+- The project proves a complete loop: gather resources -> survive nights -> craft/undo -> sort inventory -> end the run with a Victory or Defeat screen.
 - Final `dotnet build` and startup `DsaDemo.Run()` validation succeed with no blocking startup errors.
 - The game remains playable across the village, forest, and dungeon maps without collision or travel regressions.
