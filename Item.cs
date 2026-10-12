@@ -30,7 +30,7 @@ namespace TileQuest
         {
             // Weapons (crafted gear). Value = total value of the recipe's
             // ingredients; DsaDemo checks this against RecipeBook.
-            new("Wooden Sword", ItemCategory.Weapon, 8),
+            new("Wood Sword", ItemCategory.Weapon, 8),
             new("Stone Sword", ItemCategory.Weapon, 13),
             new("Iron Sword", ItemCategory.Weapon, 22),
             new("Gold Blade", ItemCategory.Weapon, 46),

@@ -123,6 +123,13 @@ namespace TileQuest
             return items;
         }
 
+        // Empties the bag (a replay starts with nothing).
+        public void Clear()
+        {
+            _counts.Clear();
+            _sortedByValue = false;
+        }
+
         // Switches display to highest-market-value-first within each category.
         public void SortByValue() => _sortedByValue = true;
 

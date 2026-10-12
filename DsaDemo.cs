@@ -63,7 +63,7 @@ namespace TileQuest
             advancingLog.OnResourceGathered("Stone", 5);
             Check("night 1 remains locked until a weapon is crafted",
                 !advancingLog.IsReadyForNightOne);
-            advancingLog.OnItemCrafted("Wooden Sword");
+            advancingLog.OnItemCrafted("Wood Sword");
             Check("night 1 unlocks after all prerequisite quests",
                 advancingLog.IsReadyForNightOne);
 
@@ -115,7 +115,7 @@ namespace TileQuest
             catchUpLog.OnNightSurvived(2);
             catchUpLog.OnResourceGathered("Wood", 10);
             catchUpLog.OnResourceGathered("Stone", 5);
-            catchUpLog.OnItemCrafted("Wooden Sword");
+            catchUpLog.OnItemCrafted("Wood Sword");
             Check("SurviveNight objectives catch up when they become Current",
                 catchUpLog.CompletedCount == 5 &&
                 catchUpLog.Current?.Title == "Survive Night 3" &&
@@ -365,7 +365,7 @@ namespace TileQuest
             Console.WriteLine("Crafting + Undo (Inventory, RecipeBook, ActionHistory)");
             var inventory = new Inventory();
             var history = new ActionHistory();
-            var club = RecipeBook.FindByName("Wooden Sword")!;
+            var club = RecipeBook.FindByName("Wood Sword")!;
             var mace = RecipeBook.FindByName("Stone Sword")!;
 
             // Wood arrives as two separate pickups, like it does in the game.
@@ -380,9 +380,9 @@ namespace TileQuest
             Check("discarding something not owned changes nothing",
                 !discardInventory.TryRemove("Stone") && discardInventory.Count("Wood") == 2);
 
-            Check("Wooden Sword (4 wood) crafts", Crafting.TryCraft(inventory, history, club));
+            Check("Wood Sword (4 wood) crafts", Crafting.TryCraft(inventory, history, club));
             Check("4 wood spent, 1 left", inventory.Count("Wood") == 1);
-            Check("wooden sword is equipped", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
+            Check("wood sword is equipped", Crafting.GetBestWeapon(inventory)?.Name == "Wood Sword");
 
             Check("Stone Sword fails with only 1 wood", !Crafting.TryCraft(inventory, history, mace));
             Check("a failed craft changes nothing", inventory.Count("Wood") == 1 &&
@@ -397,10 +397,10 @@ namespace TileQuest
             Check("first undo reverses the LAST craft (Stone Sword)", undone?.Description == "Stone Sword");
             Check("stone sword removed and materials refunded", inventory.Count("Stone Sword") == 0 &&
                 inventory.Count("Wood") == 2 && inventory.Count("Stone") == 3);
-            Check("equipment falls back to the wooden sword", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
+            Check("equipment falls back to the wood sword", Crafting.GetBestWeapon(inventory)?.Name == "Wood Sword");
 
-            Check("second undo reverses the wooden sword", Crafting.UndoLast(inventory, history)?.Description == "Wooden Sword");
-            Check("wooden sword removed, all 6 wood back", inventory.Count("Wooden Sword") == 0 && inventory.Count("Wood") == 6);
+            Check("second undo reverses the wood sword", Crafting.UndoLast(inventory, history)?.Description == "Wood Sword");
+            Check("wood sword removed, all 6 wood back", inventory.Count("Wood Sword") == 0 && inventory.Count("Wood") == 6);
             Check("nothing left to undo", Crafting.UndoLast(inventory, history) == null);
 
             Check("TryRemove refuses to overspend", !inventory.TryRemove("Wood", 99) && inventory.Count("Wood") == 6);
@@ -482,9 +482,9 @@ namespace TileQuest
             var mixed = new Inventory();
             mixed.Add("Bone", 2);
             mixed.Add("Bread");
-            mixed.Add("Wooden Sword");
+            mixed.Add("Wood Sword");
             mixed.Add("Wood", 3);
-            Check("weapon row holds only weapons", Names(mixed.GetItems(ItemCategory.Weapon)) == "Wooden Sword");
+            Check("weapon row holds only weapons", Names(mixed.GetItems(ItemCategory.Weapon)) == "Wood Sword");
             Check("food row holds only food", Names(mixed.GetItems(ItemCategory.Food)) == "Bread");
             Check("resource row holds resources and loot in catalog order",
                 Names(mixed.GetItems(ItemCategory.Resource)) == "Wood,Bone");
@@ -517,13 +517,13 @@ namespace TileQuest
                 Names(order.GetItems(ItemCategory.Resource)) == "Wood,Stone,Iron,Gold");
 
             var rows = new Inventory();
-            rows.Add("Wooden Sword");
+            rows.Add("Wood Sword");
             rows.Add("Gold Blade");
             rows.Add("Bread");
             rows.Add("Pie");
             rows.SortByValue();
-            Check("each row sorts on its own (Gold Blade before Wooden Sword; Pie before Bread)",
-                Names(rows.GetItems(ItemCategory.Weapon)) == "Gold Blade,Wooden Sword" &&
+            Check("each row sorts on its own (Gold Blade before Wood Sword; Pie before Bread)",
+                Names(rows.GetItems(ItemCategory.Weapon)) == "Gold Blade,Wood Sword" &&
                 Names(rows.GetItems(ItemCategory.Food)) == "Pie,Bread");
 
             // -- one definition per item: catalog values agree with the recipe and food books

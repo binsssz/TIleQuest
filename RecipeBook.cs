@@ -16,10 +16,10 @@ namespace TileQuest
 
         public static readonly List<CraftingRecipe> SortedByCost = new()
         {
-            new CraftingRecipe("Wooden Sword", 2, Wood(4)),                       // cost 8
-            new CraftingRecipe("Stone Sword", 4, Wood(2), Stone(3)),              // cost 13
-            new CraftingRecipe("Iron Sword", 7, Wood(2), Iron(3)),               // cost 22
-            new CraftingRecipe("Gold Blade", 10, Wood(2), Iron(3), Gold(3)),     // cost 46
+            new CraftingRecipe("Wood Sword", 3, Wood(4)),                       
+            new CraftingRecipe("Stone Sword", 6, Wood(2), Stone(3)),              
+            new CraftingRecipe("Iron Sword", 9, Wood(2), Iron(3)),
+            new CraftingRecipe("Gold Blade", 14, Wood(2), Iron(3), Gold(3)),     
         };
 
         // Binary search on the price tag: O(log n) instead of scanning the list.

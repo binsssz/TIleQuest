@@ -76,6 +76,14 @@ namespace TileQuest
         private GameScreen _screen = GameScreen.Title;   // the game opens on the title menu
         private GameScreen _previousMenuScreen = GameScreen.Title;
         private int _titleSelection;
+
+        // Ending screen (Victory / Defeat). The short input delay keeps a player
+        // who is mashing Space to swing from dismissing the screen by accident.
+        private const float EndingInputDelaySeconds = 1.0f;
+        private EndingKind _endingKind;
+        private string _endingReason = string.Empty;
+        private int _endingSelection;
+        private float _endingInputDelay;
         private int _dayCount = 1;
         private int _nightNumber;                        // 0 until the first night starts
         private int _kills;                              // wave enemies defeated (Milestone 4 score)
@@ -243,6 +251,17 @@ namespace TileQuest
 
         protected override void Initialize()
         {
+            BuildWorld();
+            base.Initialize();
+        }
+
+        // Builds a fresh world: maps, player, per-map enemy lists, dungeon chests
+        // and camera. Initialize calls it once at launch; ResetGame calls it again
+        // for a replay (the caller then runs PrepareMapVisuals and
+        // SpawnDungeonSkeletons, as LoadContent does at launch).
+        private void BuildWorld()
+        {
+            _maps.Clear();
             _maps.Add(WorldMapType.Village, new TileMap(width: 48, height: 36, tileSize: TileSize, WorldMapType.Village));
             _maps.Add(WorldMapType.Forest, new TileMap(width: 36, height: 29, tileSize: TileSize, WorldMapType.Forest));
             _maps.Add(WorldMapType.Dungeon, new TileMap(width: 36, height: 28, tileSize: TileSize, WorldMapType.Dungeon));
@@ -254,6 +273,7 @@ namespace TileQuest
             _enemies[WorldMapType.Forest] = new List<Enemy>();
             _enemies[WorldMapType.Dungeon] = new List<Enemy>();
             // Left tile of each 2-wide chest in the dungeon's top room.
+            _dungeonChests.Clear();
             foreach (Point chestTile in new[] { new Point(4, 3), new Point(7, 3), new Point(20, 3) })
             {
                 _dungeonChests.Add(new TreasureChest(
@@ -272,8 +292,6 @@ namespace TileQuest
                 _map.Height,
                 TileSize);
             _camera.SnapTo(_player.PixelPosition);
-
-            base.Initialize();
         }
 
         protected override void LoadContent()
@@ -956,8 +974,7 @@ namespace TileQuest
 
             if (_nightNumber >= MaxNights)
             {
-                _allNightsSurvived = true;
-                ShowBanner("ALL NIGHTS SURVIVED");
+                _allNightsSurvived = true;   // the Victory screen opens at the end of this method
             }
             else
             {
@@ -980,30 +997,88 @@ namespace TileQuest
             _questLog.OnNightSurvived(_nightNumber);
 
             Console.WriteLine($"[Night] Night {_nightNumber} cleared. Day {_dayCount} begins. Kills so far: {_kills}.");
+
+            if (_allNightsSurvived)
+            {
+                BeginEnding(EndingKind.Victory, "THE VILLAGE IS SAFE");
+            }
         }
 
-        // Placeholder until Milestone 4 adds the Defeat ending: the night is
-        // lost, the wave is cleared, the hearth is rebuilt, and the same night
-        // can be tried again.
+        // The night is lost (hearth destroyed, or the player fell): open the
+        // Defeat ending. The queued wave is dropped, but the world is otherwise
+        // left as it is, frozen behind the screen, until the player picks
+        // PLAY AGAIN or RETURN TO TITLE (both rebuild the world in ResetGame).
         private void FailNight(string banner, bool playerFell = false)
         {
-            _gameState = GameState.Day;
-            _hearthPaths = null;
             _spawner.ClearWave();
             _pendingWaveSpawn = null;
-            _enemies[WorldMapType.Village].RemoveAll(enemy => enemy.IsWaveEnemy);
-            _hearth.RestoreFully();
-            if (playerFell && _map.MapType == WorldMapType.Village)
-            {
-                _stats.RestoreFully();
-                _player.Teleport(_map.SpawnPoint);
-                _camera.SnapTo(_player.PixelPosition);
-            }
-            _nightNumber--;
-            ShowBanner(banner);
             Console.WriteLine(playerFell
-                ? "[Night] The player fell. The night will be retried."
-                : "[Night] The hearth was destroyed. The night will be retried.");
+                ? $"[Night] The player fell on night {_nightNumber}. Defeat."
+                : $"[Night] The hearth was destroyed on night {_nightNumber}. Defeat.");
+            BeginEnding(EndingKind.Defeat, banner);
+        }
+
+        // Opens the ending screen. Update's non-Playing branch only handles menu
+        // input from here on, so nothing in the world moves behind it.
+        private void BeginEnding(EndingKind kind, string reason)
+        {
+            _endingKind = kind;
+            _endingReason = reason;
+            _endingSelection = 0;
+            _endingInputDelay = EndingInputDelaySeconds;
+            _pendingTravel = null;
+            _pendingNightStart = false;
+            _questPanelOpen = false;
+            _screen = GameScreen.Ending;
+            Console.WriteLine($"[Ending] {kind}: {reason}. Nights survived {_dayCount - 1} of {MaxNights}, kills {_kills}.");
+        }
+
+        // Puts every piece of run state back to a fresh launch: a new world, bag,
+        // quests, stats, hearth, and day/night counters. Used by both PLAY AGAIN
+        // and RETURN TO TITLE on the ending screen, so NEW GAME afterwards starts
+        // from a clean world.
+        private void ResetGame()
+        {
+            BuildWorld();
+            PrepareMapVisuals();
+            SpawnDungeonSkeletons();
+
+            _inventory.Clear();
+            _history.ClearForNewDay();
+            _questLog.Reset();
+            _stats.RestoreFully();
+            _hearth.RestoreFully();
+            _spawner.ClearWave();
+            _pendingWaveSpawn = null;
+            _hearthPaths = null;
+            _entryPoints = Array.Empty<Point>();
+
+            _gameState = GameState.Day;
+            _dayCount = 1;
+            _nightNumber = 0;
+            _kills = 0;
+            _allNightsSurvived = false;
+            _pendingNightStart = false;
+            _pendingTravel = null;
+            _bannerText = string.Empty;
+            _bannerRemaining = 0f;
+
+            _openChest = null;
+            _chestSelection = 0;
+            _traderOpen = false;
+            _traderSelection = 0;
+            _foodShopOpen = false;
+            _foodSelection = 0;
+            _inventoryOpen = false;
+            _inventorySelection = 0;
+            _inventoryScroll = 0;
+            _equippedWeaponName = null;
+            _questPanelOpen = false;
+            _bonusQuestInserted = false;
+            _hasTalkedToWizard = false;
+            _endingSelection = 0;
+            _endingInputDelay = 0f;
+            Console.WriteLine("[Ending] Game state reset for a new run.");
         }
 
         private void RestoreResourceNodesForNewDay()
@@ -1322,6 +1397,7 @@ namespace TileQuest
         {
             var keyboard = Keyboard.GetState();
             _bannerRemaining = Math.Max(0f, _bannerRemaining - (float)gameTime.ElapsedGameTime.TotalSeconds);
+            _endingInputDelay = Math.Max(0f, _endingInputDelay - (float)gameTime.ElapsedGameTime.TotalSeconds);
             if (WasPressed(keyboard, Keys.F3))
             {
                 _showHitboxes = !_showHitboxes;
@@ -1423,7 +1499,8 @@ namespace TileQuest
                         UpdateNight((float)gameTime.ElapsedGameTime.TotalSeconds);
                     }
 
-                    if (_map.MapType != WorldMapType.Village)
+                    // UpdateNight can end the run this frame; the world stops there.
+                    if (_screen == GameScreen.Playing && _map.MapType != WorldMapType.Village)
                     {
                         UpdateHostileEnemies();
                     }
@@ -1617,7 +1694,7 @@ namespace TileQuest
                 ? $"FOES LEFT - {FoesRemaining()}  HEARTH HP - {_hearth.Health}"
                 : $"NIGHTS SURVIVED - {_dayCount - 1} OF {MaxNights}";
 
-            const int panelWidth = 360;
+            int panelWidth = Math.Max(360, Math.Max(title.Length, detail.Length) * 12 + 28);
             const int panelHeight = 58;
             int panelX = (viewport.Width - panelWidth) / 2;
 
@@ -1691,9 +1768,22 @@ namespace TileQuest
             ("QUIT", true),
         };
 
+        private static readonly (string Label, bool Enabled)[] EndingEntries =
+        {
+            ("PLAY AGAIN", true),
+            ("RETURN TO TITLE", true),
+            ("QUIT", true),
+        };
+
         private void UpdateMenuScreen(KeyboardState keyboard)
         {
             bool confirm = WasPressed(keyboard, Keys.Enter) || WasPressed(keyboard, Keys.E) || WasPressed(keyboard, Keys.Space);
+
+            if (_screen == GameScreen.Ending)
+            {
+                UpdateEndingMenu(keyboard, confirm);
+                return;
+            }
 
             if (_screen == GameScreen.HowToPlay)
             {
@@ -1812,6 +1902,10 @@ namespace TileQuest
             {
                 DrawPauseMenu(viewport, gameTime);
             }
+            else if (_screen == GameScreen.Ending)
+            {
+                DrawEndingScreen(viewport, gameTime);
+            }
             else
             {
                 DrawTitle(viewport, gameTime);
@@ -1887,6 +1981,116 @@ namespace TileQuest
 
             float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
             DrawCenteredText(viewport, "W/S SELECT    ENTER CONFIRM    ESC QUIT", viewport.Height - 44, 1, Color.LightGray * pulse);
+        }
+
+        private void UpdateEndingMenu(KeyboardState keyboard, bool confirm)
+        {
+            // Ignore input for a moment after the ending opens (see EndingInputDelaySeconds).
+            if (_endingInputDelay > 0f)
+            {
+                return;
+            }
+
+            int step = 0;
+            if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
+            {
+                step = -1;
+            }
+            else if (WasPressed(keyboard, Keys.Down) || WasPressed(keyboard, Keys.S))
+            {
+                step = 1;
+            }
+
+            if (step != 0)
+            {
+                _endingSelection = (_endingSelection + step + EndingEntries.Length) % EndingEntries.Length;
+            }
+            else if (confirm && EndingEntries[_endingSelection].Enabled)
+            {
+                switch (EndingEntries[_endingSelection].Label)
+                {
+                    case "PLAY AGAIN":
+                        ResetGame();
+                        _screen = GameScreen.Playing;
+                        break;
+                    case "RETURN TO TITLE":
+                        ResetGame();
+                        _titleSelection = 0;
+                        _screen = GameScreen.Title;
+                        break;
+                    case "QUIT":
+                        Exit();
+                        break;
+                }
+            }
+        }
+
+        private void DrawEndingScreen(Viewport viewport, GameTime gameTime)
+        {
+            bool victory = _endingKind == EndingKind.Victory;
+            if (!victory)
+            {
+                // A red wash over the usual dim overlay marks the loss.
+                _spriteBatch.Draw(_pixelTexture, viewport.Bounds, new Color(90, 12, 12) * 0.25f);
+            }
+
+            string title = victory ? "VICTORY" : "DEFEAT";
+            Color titleColor = victory ? Color.Gold : new Color(220, 70, 60);
+            int titleX = (viewport.Width - title.Length * 6 * 8) / 2;
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX + 5, 60 + 5), 8, Color.Black * 0.8f);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX, 60), 8, titleColor);
+
+            string subtitle = victory
+                ? "THE HEARTH BURNS ON. THE VILLAGE IS SAFE."
+                : $"{_endingReason} ON NIGHT {_nightNumber}";
+            DrawCenteredText(viewport, subtitle, 135, 2, Color.Wheat);
+
+            // Run summary panel.
+            var summary = new (string Label, string Value)[]
+            {
+                ("NIGHTS SURVIVED", $"{_dayCount - 1} OF {MaxNights}"),
+                ("ENEMIES DEFEATED", _kills.ToString()),
+                ("QUESTS COMPLETED", $"{_questLog.CompletedCount} OF {_questLog.Count}"),
+                ("HEARTH HP", $"{_hearth.Health} OF {_hearth.MaxHealth}"),
+            };
+            const int lineHeight = 26;
+            const int summaryWidth = 420;
+            var summaryPanel = new Rectangle(
+                (viewport.Width - summaryWidth) / 2, 170, summaryWidth, summary.Length * lineHeight + 24);
+            DrawHudPanel(summaryPanel);
+            for (int i = 0; i < summary.Length; i++)
+            {
+                int y = summaryPanel.Y + 14 + i * lineHeight;
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, summary[i].Label,
+                    new Point(summaryPanel.X + 20, y), 2, Color.Wheat);
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, summary[i].Value,
+                    new Point(summaryPanel.Right - 20 - summary[i].Value.Length * 12, y), 2, Color.White);
+            }
+
+            // Selection menu, same rows as the pause menu.
+            const int rowHeight = 44;
+            const int panelWidth = 360;
+            int panelHeight = EndingEntries.Length * rowHeight + 20;
+            var panel = new Rectangle((viewport.Width - panelWidth) / 2, 330, panelWidth, panelHeight);
+            DrawHudPanel(panel);
+
+            for (int i = 0; i < EndingEntries.Length; i++)
+            {
+                (string label, bool enabled) = EndingEntries[i];
+                bool selected = i == _endingSelection;
+                var row = new Rectangle(panel.X + 10, panel.Y + 10 + i * rowHeight, panel.Width - 20, rowHeight - 6);
+                _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+
+                Color color = !enabled ? new Color(110, 104, 98) : selected ? Color.White : Color.Wheat;
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, label, new Point(row.X + 16, row.Y + 9), 3, color);
+            }
+
+            if (_endingInputDelay <= 0f)
+            {
+                float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
+                DrawCenteredText(viewport, "W/S SELECT    ENTER CONFIRM", viewport.Height - 44, 1, Color.LightGray * pulse);
+            }
         }
 
         private void DrawHowToPlay(Viewport viewport)
