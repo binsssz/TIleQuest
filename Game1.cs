@@ -95,6 +95,7 @@ namespace TileQuest
         private Texture2D _enemyTexture = null!;
         private Texture2D _enemyHandsTexture = null!;
         private Texture2D _enemyRunTexture = null!;
+        private Texture2D _skeletonWeaponTexture = null!;
 
         // Skeleton sprite sets, indexed by (int)SkeletonVariant. They share the
         // orc's layout: Idle is 4 frames of 32x32, Run is 6 frames of 64x64.
@@ -141,6 +142,10 @@ namespace TileQuest
         private const int EnemyRunCellSize = 64;
         private const int EnemyRunFrameCount = 6;
         private const float EnemyRunFramesPerTile = 4.8f;
+        private static readonly Rectangle SkeletonWeaponSource = new(64, 0, 16, 48);
+        private static readonly Point SkeletonIdleWeaponHand = new(23, 19);
+        private static readonly Point SkeletonRunWeaponHand = new(49, 39);
+        private const float SkeletonWeaponScale = 0.65f;
 
         // The goblin sprite has no arms, so its hands are separate sprites drawn
         // on top. Hands.png is 2 columns (left hand, right hand) of 16x16 cells;
@@ -274,6 +279,7 @@ namespace TileQuest
             _enemyTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Idle/Idle-Sheet.png");
             _enemyHandsTexture = LoadTexture("Weapons/Hands/Hands.png");
             _enemyRunTexture = LoadTexture("Entities/Mobs/Orc Crew/Orc/Run/Run-Sheet.png");
+            _skeletonWeaponTexture = LoadTexture("Weapons/bone/bone.png");
             for (int i = 0; i < SkeletonFolders.Length; i++)
             {
                 string folder = $"Entities/Mobs/Skeleton Crew/{SkeletonFolders[i]}";
@@ -2693,6 +2699,29 @@ namespace TileQuest
                 0f);
         }
 
+        private void DrawSkeletonWeapon(Point handCenter, int cellSize, int bodyX, int bodyY, float bodyScale, Color tint, bool flip)
+        {
+            float weaponScale = bodyScale * SkeletonWeaponScale;
+            int width = (int)Math.Round(SkeletonWeaponSource.Width * weaponScale);
+            int height = (int)Math.Round(SkeletonWeaponSource.Height * weaponScale);
+            int handX = flip ? cellSize - handCenter.X : handCenter.X;
+            int anchorX = bodyX + (int)Math.Round(handX * bodyScale);
+            int anchorY = bodyY + (int)Math.Round(handCenter.Y * bodyScale);
+            int gripOffset = (int)Math.Round(36f * weaponScale);
+            var destination = new Rectangle(anchorX - width / 2, anchorY - gripOffset, width, height);
+            SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+
+            _spriteBatch.Draw(
+                _skeletonWeaponTexture,
+                destination,
+                SkeletonWeaponSource,
+                tint,
+                0f,
+                Vector2.Zero,
+                effects,
+                0f);
+        }
+
         private void DrawEnemy(Enemy enemy)
         {
             float scale = TileSize / (float)EnemySpriteHeight;
@@ -2702,9 +2731,8 @@ namespace TileQuest
             Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
             tint *= enemy.DeathFade;
 
-            // Skeletons and goblins share the same sheet layout and body size, so
-            // only the textures differ. Skeletons have arms in the sprite; the
-            // goblin's hands are separate sprites drawn on top.
+            // Skeletons and goblins share the same sheet layout and body size.
+            // Skeletons carry a bone spear; goblin hands are separate sprites.
             bool skeleton = enemy.Kind == EnemyKind.Skeleton;
             Texture2D idleTexture = skeleton ? _skeletonIdleTextures[(int)enemy.Variant] : _enemyTexture;
             Texture2D runTexture = skeleton ? _skeletonRunTextures[(int)enemy.Variant] : _enemyRunTexture;
@@ -2729,6 +2757,12 @@ namespace TileQuest
                     Vector2.Zero,
                     effects,
                     0f);
+
+                if (skeleton)
+                {
+                    DrawSkeletonWeapon(
+                        SkeletonRunWeaponHand, EnemyRunCellSize, runX, runY, scale, tint, flip);
+                }
             }
             else
             {
@@ -2758,6 +2792,10 @@ namespace TileQuest
                 if (!skeleton)
                 {
                     DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip);
+                }
+                else
+                {
+                    DrawSkeletonWeapon(SkeletonIdleWeaponHand, EnemyCellSize, x, y, scale, tint, flip);
                 }
             }
 
