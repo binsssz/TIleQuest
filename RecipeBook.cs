@@ -8,12 +8,11 @@ namespace TileQuest
     // returns one match per key.
     public static class RecipeBook
     {
-        // Item values match what the game's drops/harvests use.
-        private static RecipeIngredient Wood(int quantity) => new("Wood", "Resource", quantity, 2);
-        private static RecipeIngredient Stone(int quantity) => new("Stone", "Resource", quantity, 3);
-        private static RecipeIngredient Iron(int quantity) => new("Iron", "Resource", quantity, 6);
-        private static RecipeIngredient Gold(int quantity) => new("Gold", "Resource", quantity, 8);
-        private static RecipeIngredient Bone(int quantity) => new("Bone", "Loot", quantity, 3);
+        // Ingredient helpers; each material's market value comes from ItemCatalog.
+        private static ItemStack Wood(int quantity) => new("Wood", quantity);
+        private static ItemStack Stone(int quantity) => new("Stone", quantity);
+        private static ItemStack Iron(int quantity) => new("Iron", quantity);
+        private static ItemStack Gold(int quantity) => new("Gold", quantity);
 
         public static readonly List<CraftingRecipe> SortedByCost = new()
         {

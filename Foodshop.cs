@@ -8,7 +8,7 @@ namespace TileQuest
         AlreadyFull,
     }
 
-    // Glue between the food vendor (FoodBook), the Inventory linked list, and
+    // Glue between the food vendor (FoodBook), the Dictionary Inventory, and
     // PlayerStats. Kept free of any MonoGame code so DsaDemo can exercise it
     // at startup. Purchases are final: food can be eaten, so they are not
     // pushed onto the undo stack.
@@ -16,28 +16,28 @@ namespace TileQuest
     {
         public static bool CanAfford(Inventory inventory, FoodItem food)
         {
-            return inventory.CountOf(FoodBook.Currency) >= food.Price;
+            return inventory.Has(FoodBook.Currency, food.Price);
         }
 
         // Spends the gold and adds one food item to the bag. Returns false
         // (changing nothing) if the player cannot afford it.
         public static bool TryBuy(Inventory inventory, FoodItem food)
         {
-            if (!CanAfford(inventory, food) || !inventory.RemoveQuantity(FoodBook.Currency, food.Price))
+            if (!inventory.TrySpend(new[] { new ItemStack(FoodBook.Currency, food.Price) }))
             {
                 return false;
             }
 
-            inventory.AddItem(new Item(food.Name, FoodBook.Category, 1, food.Price * FoodBook.GoldUnitValue));
+            inventory.Add(food.Name);
             return true;
         }
 
         // Eats one unit of the named food: removes it from the bag and
         // restores its energy. Nothing is consumed if the item is not food,
         // is not owned, or energy is already full.
-        public static EatResult TryEat(Inventory inventory, PlayerStats stats, string itemName, string category)
+        public static EatResult TryEat(Inventory inventory, PlayerStats stats, string itemName)
         {
-            if (category != FoodBook.Category || FoodBook.FindByName(itemName) is not FoodItem food)
+            if (FoodBook.FindByName(itemName) is not FoodItem food)
             {
                 return EatResult.NotFood;
             }
@@ -47,7 +47,7 @@ namespace TileQuest
                 return EatResult.AlreadyFull;
             }
 
-            if (!inventory.RemoveOne(itemName, category))
+            if (!inventory.TryRemove(itemName))
             {
                 return EatResult.NotOwned;
             }

@@ -11,15 +11,16 @@ namespace TileQuest
     }
 
     // One place that decides what each resource looks like in the inventory,
-    // so harvesting, pickups and (later) crafting agree on names and values.
+    // so harvesting, pickups and (later) crafting agree on names; values and
+    // categories come from ItemCatalog.
     public static class ResourceItems
     {
         public static Item Create(ResourceType type) => type switch
         {
-            ResourceType.Wood => new Item("Wood", "Resource", 1, 2),
-            ResourceType.Stone => new Item("Stone", "Resource", 1, 3),
-            ResourceType.Iron => new Item("Iron", "Resource", 1, 6),
-            _ => new Item("Gold", "Resource", 1, 8),
+            ResourceType.Wood => new Item("Wood", 1),
+            ResourceType.Stone => new Item("Stone", 1),
+            ResourceType.Iron => new Item("Iron", 1),
+            _ => new Item("Gold", 1),
         };
     }
 

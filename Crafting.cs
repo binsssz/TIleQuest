@@ -1,18 +1,16 @@
 namespace TileQuest
 {
-    // Glue between the three DSA pieces the trader uses: the Inventory linked
-    // list (materials and crafted gear), RecipeBook + BinarySearchUtil (finding
-    // the recipe), and ActionHistory (the undo stack). Kept free of any
-    // MonoGame code so DsaDemo can exercise it at startup.
+    // Glue between the three DSA pieces the trader uses: the Dictionary
+    // Inventory (materials and crafted gear), RecipeBook + BinarySearchUtil
+    // (finding the recipe), and ActionHistory (the undo stack). Kept free of
+    // any MonoGame code so DsaDemo can exercise it at startup.
     public static class Crafting
     {
-        public const string GearCategory = "Gear";
-
         public static bool CanCraft(Inventory inventory, CraftingRecipe recipe)
         {
-            foreach (RecipeIngredient ingredient in recipe.Ingredients)
+            foreach (ItemStack ingredient in recipe.Ingredients)
             {
-                if (inventory.CountOf(ingredient.ItemName) < ingredient.Quantity)
+                if (!inventory.Has(ingredient.Type, ingredient.Quantity))
                 {
                     return false;
                 }
@@ -25,22 +23,25 @@ namespace TileQuest
         // nothing) if the player cannot afford it.
         public static bool TryCraft(Inventory inventory, ActionHistory history, CraftingRecipe recipe)
         {
-            if (!CanCraft(inventory, recipe))
+            // TrySpend is atomic: it checks every ingredient before deducting
+            // any, so a failed craft never leaves a half-paid transaction.
+            if (!inventory.TrySpend(recipe.Ingredients))
             {
                 return false;
             }
 
-            foreach (RecipeIngredient ingredient in recipe.Ingredients)
+            var created = new[] { new ItemStack(recipe.Name, 1) };
+            foreach (ItemStack stack in created)
             {
-                inventory.RemoveQuantity(ingredient.ItemName, ingredient.Quantity);
+                inventory.Add(stack.Type, stack.Quantity);
             }
 
-            inventory.AddItem(new Item(recipe.Name, GearCategory, 1, recipe.Cost));
             history.Record(new PlayerAction(
                 PlayerActionType.CraftItem,
                 recipe.Name,
                 recipe.Cost,
-                spent: recipe.Ingredients));
+                spent: recipe.Ingredients,
+                created: created));
             return true;
         }
 
@@ -57,10 +58,16 @@ namespace TileQuest
 
             if (action.Type == PlayerActionType.CraftItem)
             {
-                inventory.RemoveItem(action.Description);
-                foreach (RecipeIngredient spent in action.Spent)
+                // Remove exactly what the craft created (if the player already
+                // dropped it, there is nothing to take back), then hand back
+                // exactly what it spent.
+                foreach (ItemStack created in action.Created)
                 {
-                    inventory.AddItem(new Item(spent.ItemName, spent.Category, spent.Quantity, spent.UnitValue));
+                    inventory.TryRemove(created.Type, created.Quantity);
+                }
+                foreach (ItemStack spent in action.Spent)
+                {
+                    inventory.Add(spent.Type, spent.Quantity);
                 }
             }
 
@@ -72,14 +79,9 @@ namespace TileQuest
         public static CraftingRecipe? GetBestWeapon(Inventory inventory)
         {
             CraftingRecipe? best = null;
-            foreach (Item item in inventory.Items)
+            foreach ((string type, int qty) in inventory.GetItems(ItemCategory.Weapon))
             {
-                if (item.Category != GearCategory)
-                {
-                    continue;
-                }
-
-                CraftingRecipe? recipe = RecipeBook.FindByName(item.Name);
+                CraftingRecipe? recipe = RecipeBook.FindByName(type);
                 if (recipe == null)
                 {
                     continue;

@@ -25,8 +25,6 @@ namespace TileQuest
     public static class FoodBook
     {
         public const string Currency = "Gold";
-        public const string Category = "Food";
-        public const int GoldUnitValue = 8;   // matches the Gold the game drops, so food has a sensible bag value
 
         public static readonly List<FoodItem> SortedByPrice = new()
         {

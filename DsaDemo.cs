@@ -24,7 +24,7 @@ namespace TileQuest
             DemoCraftingUndo();
             DemoPlayerStats();
             DemoFoodVendor();
-            DemoLinkedList();
+            DemoDictionaryInventory();
             DemoBinarySearch();
             DemoInsertionSort();
             DemoPathField();
@@ -63,28 +63,28 @@ namespace TileQuest
             var inventory = new Inventory();
             var stats = new PlayerStats();
 
-            Check("cannot buy with no gold", !FoodShop.TryBuy(inventory, bread) && inventory.CountOf("Bread") == 0);
+            Check("cannot buy with no gold", !FoodShop.TryBuy(inventory, bread) && inventory.Count("Bread") == 0);
 
-            inventory.AddItem(new Item("Gold", "Resource", 1, 8));
-            inventory.AddItem(new Item("Gold", "Resource", 2, 8));
+            inventory.Add("Gold", 1);
+            inventory.Add("Gold", 2);
             Check("gold from separate pickups pays for bread (3 gold, bread costs 1)",
-                FoodShop.TryBuy(inventory, bread) && inventory.CountOf("Gold") == 2 && inventory.CountOf("Bread") == 1);
+                FoodShop.TryBuy(inventory, bread) && inventory.Count("Gold") == 2 && inventory.Count("Bread") == 1);
             Check("a pie costs more than the gold left, so nothing changes",
-                !FoodShop.TryBuy(inventory, pie) && inventory.CountOf("Gold") == 2 && inventory.CountOf("Pie") == 0);
+                !FoodShop.TryBuy(inventory, pie) && inventory.Count("Gold") == 2 && inventory.Count("Pie") == 0);
 
             Check("eating at full energy is refused and keeps the food",
-                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.AlreadyFull &&
-                inventory.CountOf("Bread") == 1);
+                FoodShop.TryEat(inventory, stats, "Bread") == EatResult.AlreadyFull &&
+                inventory.Count("Bread") == 1);
 
             stats.Update(307.5f);   // hunger: drains 61.5 energy
             int before = stats.Energy;
             Check("eating bread restores its energy and uses it up",
-                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.Eaten &&
-                stats.Energy == before + bread.Energy && inventory.CountOf("Bread") == 0);
+                FoodShop.TryEat(inventory, stats, "Bread") == EatResult.Eaten &&
+                stats.Energy == before + bread.Energy && inventory.Count("Bread") == 0);
             Check("eating food you no longer have changes nothing",
-                FoodShop.TryEat(inventory, stats, "Bread", FoodBook.Category) == EatResult.NotOwned);
+                FoodShop.TryEat(inventory, stats, "Bread") == EatResult.NotOwned);
             Check("gold is not food",
-                FoodShop.TryEat(inventory, stats, "Gold", "Resource") == EatResult.NotFood);
+                FoodShop.TryEat(inventory, stats, "Gold") == EatResult.NotFood);
         }
 
         // Player stats: damage, grace period, hunger-style energy, healing.
@@ -221,7 +221,7 @@ namespace TileQuest
             Check("new day clears history", !history.CanUndo && history.Undo() == null);
         }
 
-        // Trader crafting + undo: materials come out of the linked-list
+        // Trader crafting + undo: materials come out of the Dictionary
         // inventory, the transaction goes on the stack, and U pops it again.
         private static void DemoCraftingUndo()
         {
@@ -232,64 +232,170 @@ namespace TileQuest
             var mace = RecipeBook.FindByName("Stone Sword")!;
 
             // Wood arrives as two separate pickups, like it does in the game.
-            inventory.AddItem(new Item("Wood", "Resource", 3, 2));
-            inventory.AddItem(new Item("Wood", "Resource", 2, 2));
-            inventory.AddItem(new Item("Stone", "Resource", 3, 3));
-            Check("CountOf totals wood across separate pickups (5)", inventory.CountOf("Wood") == 5);
+            inventory.Add("Wood", 3);
+            inventory.Add("Wood", 2);
+            inventory.Add("Stone", 3);
+            Check("wood from separate pickups stacks (5)", inventory.Count("Wood") == 5);
             var discardInventory = new Inventory();
-            discardInventory.AddItem(new Item("Wood", "Resource", 3, 2));
+            discardInventory.Add("Wood", 3);
             Check("discarding one wood leaves the rest of the stack",
-                discardInventory.RemoveOne("Wood", "Resource") && discardInventory.CountOf("Wood") == 2);
-            Check("discarding from the wrong category changes nothing",
-                !discardInventory.RemoveOne("Wood", "Loot") && discardInventory.CountOf("Wood") == 2);
+                discardInventory.TryRemove("Wood") && discardInventory.Count("Wood") == 2);
+            Check("discarding something not owned changes nothing",
+                !discardInventory.TryRemove("Stone") && discardInventory.Count("Wood") == 2);
 
             Check("Wooden Sword (4 wood) crafts", Crafting.TryCraft(inventory, history, club));
-            Check("4 wood spent, 1 left", inventory.CountOf("Wood") == 1);
+            Check("4 wood spent, 1 left", inventory.Count("Wood") == 1);
             Check("wooden sword is equipped", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
 
             Check("Stone Sword fails with only 1 wood", !Crafting.TryCraft(inventory, history, mace));
-            Check("a failed craft changes nothing", inventory.CountOf("Wood") == 1 &&
-                inventory.CountOf("Stone") == 3 && history.Count == 1);
+            Check("a failed craft changes nothing", inventory.Count("Wood") == 1 &&
+                inventory.Count("Stone") == 3 && history.Count == 1);
 
-            inventory.AddItem(new Item("Wood", "Resource", 1, 2));
+            inventory.Add("Wood");
             Check("Stone Sword crafts once the wood is there", Crafting.TryCraft(inventory, history, mace));
             Check("stone sword (stronger) is now equipped", Crafting.GetBestWeapon(inventory)?.Name == "Stone Sword");
-            Check("materials spent (0 wood, 0 stone)", inventory.CountOf("Wood") == 0 && inventory.CountOf("Stone") == 0);
+            Check("materials spent (0 wood, 0 stone)", inventory.Count("Wood") == 0 && inventory.Count("Stone") == 0);
 
             var undone = Crafting.UndoLast(inventory, history);
             Check("first undo reverses the LAST craft (Stone Sword)", undone?.Description == "Stone Sword");
-            Check("stone sword removed and materials refunded", inventory.Find("Stone Sword") == null &&
-                inventory.CountOf("Wood") == 2 && inventory.CountOf("Stone") == 3);
+            Check("stone sword removed and materials refunded", inventory.Count("Stone Sword") == 0 &&
+                inventory.Count("Wood") == 2 && inventory.Count("Stone") == 3);
             Check("equipment falls back to the wooden sword", Crafting.GetBestWeapon(inventory)?.Name == "Wooden Sword");
 
             Check("second undo reverses the wooden sword", Crafting.UndoLast(inventory, history)?.Description == "Wooden Sword");
-            Check("wooden sword removed, all 6 wood back", inventory.Find("Wooden Sword") == null && inventory.CountOf("Wood") == 6);
+            Check("wooden sword removed, all 6 wood back", inventory.Count("Wooden Sword") == 0 && inventory.Count("Wood") == 6);
             Check("nothing left to undo", Crafting.UndoLast(inventory, history) == null);
 
-            Check("RemoveQuantity refuses to overspend", !inventory.RemoveQuantity("Wood", 99) && inventory.CountOf("Wood") == 6);
+            Check("TryRemove refuses to overspend", !inventory.TryRemove("Wood", 99) && inventory.Count("Wood") == 6);
         }
 
-        // LinkedList: add, remove from the middle, then read back.
-        private static void DemoLinkedList()
+        // One line per catalog item ("Wood:3,Stone:1"), for exact before/after comparisons.
+        private static string Snapshot(Inventory inventory)
         {
-            Console.WriteLine("LinkedList (Inventory)");
+            var parts = new List<string>();
+            foreach (ItemCategory category in ItemCatalog.Categories)
+            {
+                foreach ((string type, int qty) in inventory.GetItems(category))
+                {
+                    parts.Add($"{type}:{qty}");
+                }
+            }
+            return string.Join(",", parts);
+        }
+
+        private static string Names(IEnumerable<(string type, int qty)> items)
+        {
+            return string.Join(",", items.Select(entry => entry.type));
+        }
+
+        // Dictionary inventory: stacking, removal to zero, atomic spending,
+        // undo round trip, category filtering, and display/sort order.
+        private static void DemoDictionaryInventory()
+        {
+            Console.WriteLine("Dictionary (Inventory, ItemCatalog)");
+
+            // -- add + stack
             var inventory = new Inventory();
-            inventory.AddItem(new Item("Wood", "Resource", quantity: 10, value: 2));
-            inventory.AddItem(new Item("Stone", "Resource", quantity: 5, value: 3));
-            inventory.AddItem(new Item("Iron Axe", "Tool", quantity: 1, value: 20));
-            inventory.AddItem(new Item("Torch", "Tool", quantity: 2, value: 8));
+            inventory.Add("Wood", 10);
+            inventory.Add("Wood");
+            inventory.Add("Stone", 5);
+            Check("add stacks onto one entry (wood 11, stone 5)",
+                inventory.Count("Wood") == 11 && inventory.Count("Stone") == 5 &&
+                inventory.GetItems(ItemCategory.Resource).Count() == 2);
+            Check("Has respects the quantity", inventory.Has("Wood", 11) && !inventory.Has("Wood", 12) && !inventory.Has("Iron"));
+            Check("Count of an item never held is 0", inventory.Count("Iron") == 0);
+            bool rejected = false;
+            try { inventory.Add("Diamond"); } catch (ArgumentException) { rejected = true; }
+            Check("an undefined item type is rejected", rejected && inventory.Count("Diamond") == 0);
 
-            Check("four items added", inventory.Items.Count == 4);
-            Check("Find locates an item by name", inventory.Find("Stone")?.Quantity == 5);
-            Check("Find returns null for a missing item", inventory.Find("Diamond") == null);
+            // -- remove to zero deletes the key
+            Check("removing part of a stack keeps the rest", inventory.TryRemove("Wood", 4) && inventory.Count("Wood") == 7);
+            Check("removing more than held fails and changes nothing", !inventory.TryRemove("Wood", 8) && inventory.Count("Wood") == 7);
+            Check("removing the whole stack succeeds", inventory.TryRemove("Wood", 7) && inventory.Count("Wood") == 0);
+            Check("a zero quantity is gone from the listing (key deleted)",
+                !inventory.GetItems(ItemCategory.Resource).Any(entry => entry.type == "Wood") && !inventory.Has("Wood"));
+            Check("removing an item that is gone returns false", !inventory.TryRemove("Wood"));
 
-            Check("RemoveItem removes a middle item", inventory.RemoveItem("Stone"));
-            Check("removed item is gone, others remain", inventory.Find("Stone") == null && inventory.Items.Count == 3);
-            Check("RemoveItem on a missing name returns false", !inventory.RemoveItem("Stone"));
+            // -- TrySpend is atomic
+            var purse = new Inventory();
+            purse.Add("Wood", 2);
+            purse.Add("Stone", 1);
+            string before = Snapshot(purse);
+            var tooMuch = new[] { new ItemStack("Wood", 2), new ItemStack("Stone", 3) };
+            Check("TrySpend fails when any entry is short", !purse.TrySpend(tooMuch));
+            Check("a failed TrySpend leaves the inventory unchanged (wood not half-paid)", Snapshot(purse) == before);
+            Check("duplicate cost entries are added together (1 + 2 wood > 2)",
+                !purse.TrySpend(new[] { new ItemStack("Wood", 1), new ItemStack("Wood", 2) }) && Snapshot(purse) == before);
+            Check("TrySpend succeeds when everything is covered",
+                purse.TrySpend(new[] { new ItemStack("Wood", 2), new ItemStack("Stone", 1) }) && Snapshot(purse) == "");
 
-            var order = inventory.Items.Select(i => i.Name).ToList();
-            Check("insertion order preserved (Wood, Iron Axe, Torch)",
-                order.SequenceEqual(new[] { "Wood", "Iron Axe", "Torch" }));
+            // -- add -> spend -> undo round trip
+            var bag = new Inventory();
+            var history = new ActionHistory();
+            bag.Add("Wood", 6);
+            bag.Add("Stone", 4);
+            string start = Snapshot(bag);
+            var stoneSword = RecipeBook.FindByName("Stone Sword")!;
+            Check("craft spends the ingredients and adds the sword",
+                Crafting.TryCraft(bag, history, stoneSword) && Snapshot(bag) == "Stone Sword:1,Wood:4,Stone:1");
+            Check("undo restores exactly the starting inventory",
+                Crafting.UndoLast(bag, history)?.Description == "Stone Sword" && Snapshot(bag) == start);
+
+            // -- category filtering
+            var mixed = new Inventory();
+            mixed.Add("Bone", 2);
+            mixed.Add("Bread");
+            mixed.Add("Wooden Sword");
+            mixed.Add("Wood", 3);
+            Check("weapon row holds only weapons", Names(mixed.GetItems(ItemCategory.Weapon)) == "Wooden Sword");
+            Check("food row holds only food", Names(mixed.GetItems(ItemCategory.Food)) == "Bread");
+            Check("resource row holds resources and loot in catalog order",
+                Names(mixed.GetItems(ItemCategory.Resource)) == "Wood,Bone");
+            Check("an empty category lists nothing", !new Inventory().GetItems(ItemCategory.Food).Any());
+
+            // -- display order and sorting
+            var order = new Inventory();
+            order.Add("Gold");
+            order.Add("Wood", 10);
+            order.Add("Iron", 2);
+            order.Add("Stone", 5);
+            Check("default order is catalog order, not insertion order",
+                Names(order.GetItems(ItemCategory.Resource)) == "Wood,Stone,Iron,Gold");
+            order.TryRemove("Stone", 5);
+            order.Add("Stone");
+            Check("order stays stable after a remove and re-add",
+                Names(order.GetItems(ItemCategory.Resource)) == "Wood,Stone,Iron,Gold");
+
+            order.SortByValue();
+            Check("SortByValue orders a row highest value first (Gold 8, Iron 6, Stone 3, Wood 2)",
+                Names(order.GetItems(ItemCategory.Resource)) == "Gold,Iron,Stone,Wood");
+            Check("sorted order persists across reads",
+                Names(order.GetItems(ItemCategory.Resource)) == "Gold,Iron,Stone,Wood" && order.IsSortedByValue);
+            order.Add("Wood");
+            Check("the next inventory change returns to catalog order",
+                !order.IsSortedByValue && Names(order.GetItems(ItemCategory.Resource)) == "Wood,Stone,Iron,Gold");
+            order.SortByValue();
+            order.ResetOrder();
+            Check("ResetOrder (I pressed again) returns to catalog order",
+                Names(order.GetItems(ItemCategory.Resource)) == "Wood,Stone,Iron,Gold");
+
+            var rows = new Inventory();
+            rows.Add("Wooden Sword");
+            rows.Add("Gold Blade");
+            rows.Add("Bread");
+            rows.Add("Pie");
+            rows.SortByValue();
+            Check("each row sorts on its own (Gold Blade before Wooden Sword; Pie before Bread)",
+                Names(rows.GetItems(ItemCategory.Weapon)) == "Gold Blade,Wooden Sword" &&
+                Names(rows.GetItems(ItemCategory.Food)) == "Pie,Bread");
+
+            // -- one definition per item: catalog values agree with the recipe and food books
+            Check("weapon values equal their recipe cost",
+                RecipeBook.SortedByCost.All(r => ItemCatalog.CategoryOf(r.Name) == ItemCategory.Weapon &&
+                    ItemCatalog.ValueOf(r.Name) == r.Cost));
+            Check("food values equal price x gold value",
+                FoodBook.SortedByPrice.All(f => ItemCatalog.CategoryOf(f.Name) == ItemCategory.Food &&
+                    ItemCatalog.ValueOf(f.Name) == f.Price * ItemCatalog.ValueOf(FoodBook.Currency)));
         }
 
         // Binary search: only valid on data sorted ascending by the key.
@@ -327,7 +433,7 @@ namespace TileQuest
             Check("RecipeBook.FindByCost(36) is null", RecipeBook.FindByCost(36) == null);
             Check("RecipeBook.FindByCost(14) is null", RecipeBook.FindByCost(14) == null);
             Check("recipe cost equals the value of its ingredients",
-                recipes.All(r => r.Cost == r.Ingredients.Sum(i => i.Quantity * i.UnitValue)));
+                recipes.All(r => r.Cost == r.Ingredients.Sum(i => i.Quantity * ItemCatalog.ValueOf(i.Type))));
         }
 
         // Graph + BFS: the distance field goblins follow to the hearth. 5x3 yard,
@@ -464,7 +570,7 @@ namespace TileQuest
                 hostile.TryBeginAttack(Cycle, Vector2.UnitX, true) && hostile.IsAttacking);
         }
 
-        // Insertion sort: highest value first.
+        // Insertion sort: highest value first (also what the I key uses on each inventory row).
         private static void DemoInsertionSort()
         {
             Console.WriteLine("Insertion Sort (InsertionSortUtil)");
@@ -474,12 +580,12 @@ namespace TileQuest
                 scores.SequenceEqual(new[] { 90, 60, 60, 30, 10 }));
 
             var inventory = new Inventory();
-            inventory.AddItem(new Item("Wood", "Resource", 10, 2));
-            inventory.AddItem(new Item("Iron Axe", "Tool", 1, 20));
-            inventory.AddItem(new Item("Torch", "Tool", 2, 8));
+            inventory.Add("Wood", 10);
+            inventory.Add("Iron Sword");
+            inventory.Add("Bread", 2);
             var byValue = inventory.GetSortedByValue().Select(i => i.Name).ToList();
-            Check("inventory sorted by value (Iron Axe, Torch, Wood)",
-                byValue.SequenceEqual(new[] { "Iron Axe", "Torch", "Wood" }));
+            Check("inventory sorted by value (Iron Sword 22, Bread 8, Wood 2)",
+                byValue.SequenceEqual(new[] { "Iron Sword", "Bread", "Wood" }));
 
             var empty = new List<int>();
             InsertionSortUtil.SortDescending(empty, s => s);

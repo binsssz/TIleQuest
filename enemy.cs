@@ -148,12 +148,12 @@ namespace TileQuest
 
             if (random.NextDouble() < boneChance)
             {
-                yield return new Item("Bone", "Loot", 1, 3);
+                yield return new Item("Bone", 1);
             }
 
             if (random.NextDouble() < goldChance)
             {
-                yield return new Item("Gold", "Resource", 1, 8);
+                yield return new Item("Gold", 1);
             }
         }
 

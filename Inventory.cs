@@ -1,130 +1,152 @@
+using System;
 using System.Collections.Generic;
 
 namespace TileQuest
 {
-    // DSA note: LinkedList<Item> piece. Adding or removing an item is O(1)
-    // once you have the node — no shifting every subsequent element down one
-    // slot the way List<T>.RemoveAt(middleIndex) or a plain array would need.
-    // That fits an inventory that's constantly gaining drops and losing items
-    // to crafting/building, often from the middle of the collection.
+    // DSA note: Dictionary (hash table) piece. The inventory is a count per
+    // item type, so add / remove / count are all O(1) average — no walking a
+    // list, and wood picked up ten times is one entry with a count of 10.
+    //
+    // Invariants:
+    //  * The dictionary is private; a type is present only while its quantity
+    //    is > 0 (reaching 0 removes the key).
+    //  * Dictionary enumeration order is NOT reliable after removals, so the
+    //    inventory never enumerates the dictionary for display. GetItems walks
+    //    ItemCatalog (fixed definition order) and looks each type up instead.
+    //
+    // Display order: by default fixed ItemCatalog order within each category.
+    // SortByValue() switches to "highest market value first" within each
+    // category (InsertionSortUtil.SortDescending, stable, so ties keep catalog
+    // order). That sorted order lasts until the next inventory change (any
+    // successful Add / TryRemove / TrySpend) or until ResetOrder() — the 'I'
+    // key toggles between the two. Quantities are never affected.
     public class Inventory
     {
-        private readonly LinkedList<Item> _items = new();
+        private readonly Dictionary<string, int> _counts = new(StringComparer.Ordinal);
+        private bool _sortedByValue;
 
-        public IReadOnlyCollection<Item> Items => _items;
+        public bool IsSortedByValue => _sortedByValue;
 
-        // O(1): appends to the tail, no shifting of existing items.
-        public void AddItem(Item item)
+        // Adds qty (> 0) of an item type, stacking onto what is already held.
+        // Throws for an undefined item type or a non-positive quantity.
+        public void Add(string type, int qty = 1)
         {
-            _items.AddLast(item);
-        }
-
-        // O(n) to find the node by name, but O(1) to unlink it once found —
-        // the remaining items don't need to move.
-        public bool RemoveItem(string name)
-        {
-            var node = FindNode(name);
-            if (node == null)
+            if (qty <= 0)
             {
-                return false;
+                throw new ArgumentOutOfRangeException(nameof(qty), qty, "Quantity must be positive.");
             }
-            _items.Remove(node);
-            return true;
+            ItemCatalog.Get(type);
+
+            _counts[type] = Count(type) + qty;
+            _sortedByValue = false;
         }
 
-        // Total quantity across every node with this name (pickups are stored
-        // as separate nodes, so a "stack" of wood is really several nodes).
-        public int CountOf(string name)
+        // All-or-nothing: removes qty if at least that many are held, deleting
+        // the key when it reaches zero. Returns false and changes nothing otherwise.
+        public bool TryRemove(string type, int qty = 1)
         {
-            int total = 0;
-            foreach (Item item in _items)
-            {
-                if (item.Name == name)
-                {
-                    total += item.Quantity;
-                }
-            }
-            return total;
-        }
-
-        // Removes quantity units of name, draining nodes from the front and
-        // unlinking any that empty. All-or-nothing: returns false and changes
-        // nothing if the inventory holds fewer than quantity.
-        public bool RemoveQuantity(string name, int quantity)
-        {
-            if (quantity <= 0 || CountOf(name) < quantity)
+            if (qty <= 0 || Count(type) < qty)
             {
                 return false;
             }
 
-            int remaining = quantity;
-            var node = _items.First;
-            while (node != null && remaining > 0)
+            int remaining = _counts[type] - qty;
+            if (remaining == 0)
             {
-                var next = node.Next;
-                if (node.Value.Name == name)
-                {
-                    if (node.Value.Quantity <= remaining)
-                    {
-                        remaining -= node.Value.Quantity;
-                        _items.Remove(node);
-                    }
-                    else
-                    {
-                        node.Value.Quantity -= remaining;
-                        remaining = 0;
-                    }
-                }
-                node = next;
+                _counts.Remove(type);
             }
+            else
+            {
+                _counts[type] = remaining;
+            }
+            _sortedByValue = false;
             return true;
         }
 
-        public bool RemoveOne(string name, string category)
+        public int Count(string type) => _counts.TryGetValue(type, out int count) ? count : 0;
+
+        public bool Has(string type, int qty = 1) => qty > 0 && Count(type) >= qty;
+
+        // Atomic payment: every cost entry is checked first (entries for the
+        // same type are added together), and only if all can be paid is
+        // anything deducted. A failed craft or trade changes nothing.
+        public bool TrySpend(IEnumerable<ItemStack> cost)
         {
-            for (var node = _items.First; node != null; node = node.Next)
+            var totals = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (ItemStack entry in cost)
             {
-                if (node.Value.Name != name || node.Value.Category != category)
+                if (entry.Quantity < 0)
+                {
+                    return false;
+                }
+                if (entry.Quantity == 0)
                 {
                     continue;
                 }
-
-                if (node.Value.Quantity <= 1)
-                {
-                    _items.Remove(node);
-                }
-                else
-                {
-                    node.Value.Quantity--;
-                }
-                return true;
+                totals[entry.Type] = totals.TryGetValue(entry.Type, out int sum) ? sum + entry.Quantity : entry.Quantity;
             }
 
-            return false;
-        }
-
-        public Item? Find(string name)
-        {
-            return FindNode(name)?.Value;
-        }
-
-        private LinkedListNode<Item>? FindNode(string name)
-        {
-            for (var node = _items.First; node != null; node = node.Next)
+            foreach (KeyValuePair<string, int> total in totals)
             {
-                if (node.Value.Name == name)
+                if (Count(total.Key) < total.Value)
                 {
-                    return node;
+                    return false;
                 }
             }
-            return null;
+
+            foreach (KeyValuePair<string, int> total in totals)
+            {
+                TryRemove(total.Key, total.Value);   // cannot fail: checked above
+            }
+            return true;
         }
 
-        // A snapshot sorted highest-value-first, for the inventory display.
-        // Reuses InsertionSortUtil — the same sort the leaderboard uses.
+        // Owned items (qty > 0) of one category, in display order (see class
+        // comment). Returns a snapshot, so callers may change the inventory
+        // while looping over it.
+        public IEnumerable<(string type, int qty)> GetItems(ItemCategory category)
+        {
+            var items = new List<(string type, int qty)>();
+            foreach (ItemDefinition definition in ItemCatalog.InCategory(category))
+            {
+                int qty = Count(definition.Name);
+                if (qty > 0)
+                {
+                    items.Add((definition.Name, qty));
+                }
+            }
+
+            if (_sortedByValue)
+            {
+                InsertionSortUtil.SortDescending(items, entry => ItemCatalog.ValueOf(entry.type));
+            }
+            return items;
+        }
+
+        // Switches display to highest-market-value-first within each category.
+        public void SortByValue() => _sortedByValue = true;
+
+        // Back to the fixed catalog order.
+        public void ResetOrder() => _sortedByValue = false;
+
+        // Snapshot of every owned stack, highest value first (ties in catalog
+        // order). Independent of the display-order mode. Reuses
+        // InsertionSortUtil — the same sort the leaderboard uses.
         public List<Item> GetSortedByValue()
         {
-            var snapshot = new List<Item>(_items);
+            var snapshot = new List<Item>();
+            foreach (ItemCategory category in ItemCatalog.Categories)
+            {
+                foreach (ItemDefinition definition in ItemCatalog.InCategory(category))
+                {
+                    int qty = Count(definition.Name);
+                    if (qty > 0)
+                    {
+                        snapshot.Add(new Item(definition.Name, qty));
+                    }
+                }
+            }
+
             InsertionSortUtil.SortDescending(snapshot, item => item.Value);
             return snapshot;
         }

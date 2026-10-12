@@ -242,8 +242,8 @@ namespace TileQuest
                     chestTile,
                     new[]
                     {
-                        new Item("Gold", "Resource", 2, 8),
-                        new Item("Iron", "Resource", 3, 6),
+                        new Item("Gold", 2),
+                        new Item("Iron", 3),
                     }));
             }
 
@@ -523,7 +523,7 @@ namespace TileQuest
             {
                 if (_map.TryHarvestResource(swingTile, out var harvestedItem, out bool nodeDepleted))
                 {
-                    _inventory.AddItem(harvestedItem);
+                    _inventory.Add(harvestedItem.Name, harvestedItem.Quantity);
                     mapChanged |= nodeDepleted;
                 }
             }
@@ -546,7 +546,7 @@ namespace TileQuest
                 {
                     foreach (var drop in enemy.DropLoot())
                     {
-                        _inventory.AddItem(drop);
+                        _inventory.Add(drop.Name, drop.Quantity);
                     }
                     if (enemy.IsWaveEnemy)
                     {
@@ -1006,7 +1006,7 @@ namespace TileQuest
 
             if (_map.TryCollectPickup(position, out var pickup))
             {
-                _inventory.AddItem(pickup);
+                _inventory.Add(pickup.Name, pickup.Quantity);
             }
         }
 
@@ -1063,9 +1063,7 @@ namespace TileQuest
         {
             if (_equippedWeaponName != null)
             {
-                bool stillOwned = _inventory.Items.Any(item =>
-                    item.Category == Crafting.GearCategory && item.Name == _equippedWeaponName);
-                if (stillOwned)
+                if (_inventory.Has(_equippedWeaponName))
                 {
                     return RecipeBook.FindByName(_equippedWeaponName);
                 }
@@ -1076,23 +1074,16 @@ namespace TileQuest
             return Crafting.GetBestWeapon(_inventory);
         }
 
-        private List<(string Name, string Category, int Quantity)> GetInventoryEntries()
+        // The menu list: every owned item, grouped Weapon / Food / Resource, in the
+        // inventory's current display order (catalog order, or value order after 'I').
+        private List<(string Name, ItemCategory Category, int Quantity)> GetInventoryEntries()
         {
-            var entries = new List<(string Name, string Category, int Quantity)>();
-            var indexes = new Dictionary<(string Name, string Category), int>();
-
-            foreach (Item item in _inventory.Items)
+            var entries = new List<(string Name, ItemCategory Category, int Quantity)>();
+            foreach (ItemCategory category in ItemCatalog.Categories)
             {
-                var key = (item.Name, item.Category);
-                if (indexes.TryGetValue(key, out int index))
+                foreach ((string type, int qty) in _inventory.GetItems(category))
                 {
-                    var entry = entries[index];
-                    entries[index] = (entry.Name, entry.Category, entry.Quantity + item.Quantity);
-                }
-                else
-                {
-                    indexes.Add(key, entries.Count);
-                    entries.Add((item.Name, item.Category, item.Quantity));
+                    entries.Add((type, category, qty));
                 }
             }
 
@@ -1101,11 +1092,25 @@ namespace TileQuest
 
         private void UpdateInventoryMenu(KeyboardState keyboard)
         {
-            List<(string Name, string Category, int Quantity)> entries = GetInventoryEntries();
+            List<(string Name, ItemCategory Category, int Quantity)> entries = GetInventoryEntries();
             if (WasPressed(keyboard, Keys.Escape))
             {
                 _inventoryOpen = false;
                 return;
+            }
+
+            // 'I' inside the menu toggles value-sorted order (see Inventory).
+            if (WasPressed(keyboard, Keys.I))
+            {
+                if (_inventory.IsSortedByValue)
+                {
+                    _inventory.ResetOrder();
+                }
+                else
+                {
+                    _inventory.SortByValue();
+                }
+                entries = GetInventoryEntries();
             }
 
             if (entries.Count == 0)
@@ -1127,15 +1132,15 @@ namespace TileQuest
             else if (WasPressed(keyboard, Keys.Enter) || WasPressed(keyboard, Keys.E))
             {
                 var selected = entries[_inventorySelection];
-                if (selected.Category == Crafting.GearCategory &&
+                if (selected.Category == ItemCategory.Weapon &&
                     RecipeBook.FindByName(selected.Name) is CraftingRecipe recipe)
                 {
                     _equippedWeaponName = recipe.Name;
                     ShowBanner($"EQUIPPED {recipe.Name.ToUpperInvariant()}");
                 }
-                else if (selected.Category == FoodBook.Category)
+                else if (selected.Category == ItemCategory.Food)
                 {
-                    switch (FoodShop.TryEat(_inventory, _stats, selected.Name, selected.Category))
+                    switch (FoodShop.TryEat(_inventory, _stats, selected.Name))
                     {
                         case EatResult.Eaten:
                             ShowBanner($"ATE {selected.Name.ToUpperInvariant()}");
@@ -1158,11 +1163,9 @@ namespace TileQuest
             else if (WasPressed(keyboard, Keys.D))
             {
                 var selected = entries[_inventorySelection];
-                if (_inventory.RemoveOne(selected.Name, selected.Category))
+                if (_inventory.TryRemove(selected.Name))
                 {
-                    bool stillOwned = _inventory.Items.Any(item =>
-                        item.Category == Crafting.GearCategory && item.Name == selected.Name);
-                    if (_equippedWeaponName == selected.Name && !stillOwned)
+                    if (_equippedWeaponName == selected.Name && !_inventory.Has(selected.Name))
                     {
                         _equippedWeaponName = null;
                     }
@@ -1172,7 +1175,7 @@ namespace TileQuest
                 }
             }
 
-            const int visibleRows = 10;
+            const int visibleRows = 9;
             _inventoryScroll = Math.Clamp(_inventoryScroll, 0, Math.Max(0, entries.Count - visibleRows));
             if (_inventorySelection < _inventoryScroll)
             {
@@ -1186,11 +1189,11 @@ namespace TileQuest
 
         private void DrawInventoryMenu()
         {
-            List<(string Name, string Category, int Quantity)> entries = GetInventoryEntries();
+            List<(string Name, ItemCategory Category, int Quantity)> entries = GetInventoryEntries();
             Viewport viewport = GraphicsDevice.Viewport;
             const int panelMargin = 36;
-            const int rowHeight = 42;
-            const int visibleRows = 10;
+            const int rowHeight = 54;
+            const int visibleRows = 9;
             var panel = new Rectangle(
                 panelMargin,
                 panelMargin,
@@ -1219,21 +1222,21 @@ namespace TileQuest
                     row,
                     selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
                 DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
-                DrawInventoryItemIcon(entry.Name, new Rectangle(row.X + 8, row.Y + 6, 24, 24));
+                DrawInventoryItemIcon(entry.Name, new Rectangle(row.X + 8, row.Y + 1, 48, 48));
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
                     entry.Name.ToUpperInvariant(),
-                    new Point(row.X + 42, row.Y + 7), 2, Color.White);
+                    new Point(row.X + 64, row.Y + 7), 2, Color.White);
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
-                    entry.Category.ToUpperInvariant(),
+                    entry.Category.ToString().ToUpperInvariant(),
                     new Point(row.X + 300, row.Y + 10), 1, Color.LightGray);
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
                     $"X {entry.Quantity}",
                     new Point(row.Right - 72, row.Y + 10), 1, Color.Wheat);
 
-                if (entry.Category == Crafting.GearCategory &&
+                if (entry.Category == ItemCategory.Weapon &&
                     EquippedWeapon()?.Name == entry.Name)
                 {
                     BitmapFont.Draw(
@@ -1241,7 +1244,7 @@ namespace TileQuest
                         new Point(row.Right - 150, row.Y + 10), 1, Color.LimeGreen);
                 }
 
-                if (entry.Category == FoodBook.Category && FoodBook.FindByName(entry.Name) is FoodItem foodInfo)
+                if (entry.Category == ItemCategory.Food && FoodBook.FindByName(entry.Name) is FoodItem foodInfo)
                 {
                     BitmapFont.Draw(
                         _spriteBatch, _pixelTexture, $"+{foodInfo.Energy} ENERGY",
@@ -1369,6 +1372,13 @@ namespace TileQuest
 
                 if (!interacted && (WasPressed(keyboard, Keys.I) || WasPressed(keyboard, Keys.E)))
                 {
+                    if (WasPressed(keyboard, Keys.I))
+                    {
+                        // 'I' sorts every row by market value, highest first. The order
+                        // lasts until the inventory next changes or 'I' is pressed
+                        // again inside the menu (which switches back to catalog order).
+                        _inventory.SortByValue();
+                    }
                     _inventoryOpen = true;
                     _inventorySelection = 0;
                     _inventoryScroll = 0;
@@ -1647,88 +1657,60 @@ namespace TileQuest
             _spriteBatch.End();
         }
 
+        // Two-row inventory HUD in the top-left corner, left of the day/night
+        // panel (which starts at x = 300) and above the event banner. Row 1 =
+        // weapons then food, row 2 = resources. Each slot is an icon plus its
+        // quantity; only owned items (qty > 0) get a slot, packed from the left.
+        // Rows keep their position when empty. Reads only from Inventory.GetItems.
         private void DrawInventoryHud()
         {
-            var foodAndWeapons = new List<(string Name, string Category, int Quantity)>();
-            var resources = new List<(string Name, string Category, int Quantity)>();
-
-            foreach (Item item in _inventory.Items)
-            {
-                List<(string Name, string Category, int Quantity)> section =
-                    item.Category == Crafting.GearCategory || item.Category == FoodBook.Category
-                        ? foodAndWeapons
-                        : resources;
-                int index = section.FindIndex(stack =>
-                    string.Equals(stack.Name, item.Name, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(stack.Category, item.Category, StringComparison.OrdinalIgnoreCase));
-                if (index >= 0)
-                {
-                    var stack = section[index];
-                    section[index] = (stack.Name, stack.Category, stack.Quantity + item.Quantity);
-                }
-                else
-                {
-                    section.Add((item.Name, item.Category, item.Quantity));
-                }
-            }
-
             Viewport viewport = GraphicsDevice.Viewport;
             DrawPlayerStatsHud(viewport);
 
-            const int slotSize = 44;
-            const int slotGap = 6;
-            const int panelWidth = 220;
-            const int panelHeight = 166;
-            int panelX = viewport.Width - panelWidth - 14;
-            int panelY = viewport.Height - panelHeight - 14;
+            const int slotWidth = 32;
+            const int slotHeight = 48;
+            const int slotGap = 3;
+            const int originX = 12;
+            const int originY = 10;
+            const int rowGap = 4;
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "WEAPONS + FOOD", new Point(panelX + 8, panelY + 8), 1, Color.Wheat);
 
             for (int row = 0; row < 2; row++)
             {
-                List<(string Name, string Category, int Quantity)> section =
-                    row == 0 ? foodAndWeapons : resources;
-                int sectionY = panelY + 22 + row * 68;
-                if (row == 1)
-                {
-                    BitmapFont.Draw(
-                        _spriteBatch, _pixelTexture, "RESOURCES",
-                        new Point(panelX + 8, sectionY), 1, Color.Wheat);
-                }
+                int slotY = originY + row * (slotHeight + rowGap);
+                int column = 0;
 
-                int slotY = sectionY + 12;
-                for (int column = 0; column < 4; column++)
+                IEnumerable<(string type, int qty)> stacks = row == 0
+                    ? _inventory.GetItems(ItemCategory.Weapon).Concat(_inventory.GetItems(ItemCategory.Food))
+                    : _inventory.GetItems(ItemCategory.Resource);
+
+                foreach ((string type, int qty) in stacks)
                 {
-                    int x = panelX + 8 + column * (slotSize + slotGap);
-                    var slotBounds = new Rectangle(x, slotY, slotSize, slotSize);
+                    int x = originX + column * (slotWidth + slotGap);
+                    var slotBounds = new Rectangle(x, slotY, slotWidth, slotHeight);
                     _spriteBatch.Draw(_pixelTexture, slotBounds, new Color(32, 25, 20, 235));
                     DrawHudBorder(slotBounds, new Color(156, 119, 69));
 
-                    if (column >= section.Count)
-                    {
-                        continue;
-                    }
+                    DrawInventoryItemIcon(type, new Rectangle(x, slotY + 1, 32, 32));
 
-                    var stack = section[column];
-                    var iconBounds = new Rectangle(x + 10, slotY + 5, 16, 16);
-                    DrawInventoryItemIcon(stack.Name, iconBounds);
-
-                    string quantityText = stack.Quantity.ToString();
+                    string quantityText = qty.ToString();
                     int quantityWidth = quantityText.Length * 6;
                     BitmapFont.Draw(
                         _spriteBatch,
                         _pixelTexture,
                         quantityText,
-                        new Point(x + slotSize - quantityWidth - 3, slotY + slotSize - 10),
+                        new Point(x + (slotWidth - quantityWidth) / 2, slotY + slotHeight - 11),
                         1,
                         Color.White);
+                    column++;
                 }
             }
 
-            // The best crafted weapon, just above the inventory grid.
-            var gearBounds = new Rectangle(panelX, panelY - 30, panelWidth, 24);
+            // The best crafted weapon, in the bottom-right corner (clear of the
+            // bottom-centre travel / trade prompts and the bottom-left bars).
+            const int gearWidth = 220;
+            var gearBounds = new Rectangle(viewport.Width - gearWidth - 14, viewport.Height - 24 - 14, gearWidth, 24);
             DrawHudPanel(gearBounds);
             BitmapFont.Draw(
                 _spriteBatch, _pixelTexture,
@@ -1784,7 +1766,7 @@ namespace TileQuest
                 Item? item = _openChest!.TakeItem(_chestSelection);
                 if (item != null)
                 {
-                    _inventory.AddItem(item);
+                    _inventory.Add(item.Name, item.Quantity);
                 }
             }
             else if (WasPressed(keyboard, Keys.A))
@@ -1950,8 +1932,8 @@ namespace TileQuest
                 "IRON" => new Rectangle(0, 32, 16, 16),
                 "GOLD" => new Rectangle(48, 32, 16, 16),
                 "BONE" => new Rectangle(64, 272, 16, 16),
-                "WOODEN CLUB" => new Rectangle(32, 128, 16, 16),
-                "STONE MACE" => new Rectangle(16, 128, 16, 16),
+                "WOODEN SWORD" => new Rectangle(32, 128, 16, 16),
+                "STONE SWORD" => new Rectangle(16, 128, 16, 16),
                 "IRON SWORD" => new Rectangle(0, 128, 16, 16),
                 "GOLD BLADE" => new Rectangle(48, 128, 16, 16),
                 "BREAD" => new Rectangle(64, 80, 16, 16),
@@ -2191,10 +2173,10 @@ namespace TileQuest
                 }
 
                 int cursorX = row.X + 8;
-                foreach (RecipeIngredient ingredient in recipe.Ingredients)
+                foreach (ItemStack ingredient in recipe.Ingredients)
                 {
-                    int have = _inventory.CountOf(ingredient.ItemName);
-                    string text = $"{ingredient.ItemName.ToUpperInvariant()} {have}/{ingredient.Quantity}";
+                    int have = _inventory.Count(ingredient.Type);
+                    string text = $"{ingredient.Type.ToUpperInvariant()} {have}/{ingredient.Quantity}";
                     Color color = have >= ingredient.Quantity ? new Color(140, 220, 140) : new Color(225, 110, 100);
                     BitmapFont.Draw(_spriteBatch, _pixelTexture, text, new Point(cursorX, rowY + 21), 1, color);
                     cursorX += text.Length * 6 + 14;
@@ -2298,7 +2280,7 @@ namespace TileQuest
             BitmapFont.Draw(_spriteBatch, _pixelTexture, "FOOD VENDOR", new Point(panelX + 12, panelY + 10), 2, Color.Wheat);
             BitmapFont.Draw(
                 _spriteBatch, _pixelTexture,
-                $"ENERGY {_stats.Energy}/{PlayerStats.MaxEnergy}   GOLD {_inventory.CountOf(FoodBook.Currency)}",
+                $"ENERGY {_stats.Energy}/{PlayerStats.MaxEnergy}   GOLD {_inventory.Count(FoodBook.Currency)}",
                 new Point(panelX + 12, panelY + 30), 1, Color.LightGray);
 
             for (int i = 0; i < foods.Count; i++)
@@ -2317,13 +2299,13 @@ namespace TileQuest
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, food.Name.ToUpperInvariant(), new Point(row.X + 30, rowY + 4), 2, nameColor);
                 BitmapFont.Draw(_spriteBatch, _pixelTexture, $"+{food.Energy} ENERGY", new Point(row.X + 190, rowY + 4), 2, nameColor);
 
-                int owned = _inventory.CountOf(food.Name);
+                int owned = _inventory.Count(food.Name);
                 if (owned > 0)
                 {
                     BitmapFont.Draw(_spriteBatch, _pixelTexture, $"OWNED {owned}", new Point(row.X + 390, rowY + 8), 1, Color.Wheat);
                 }
 
-                int have = _inventory.CountOf(FoodBook.Currency);
+                int have = _inventory.Count(FoodBook.Currency);
                 Color priceColor = affordable ? new Color(140, 220, 140) : new Color(225, 110, 100);
                 BitmapFont.Draw(
                     _spriteBatch, _pixelTexture,
