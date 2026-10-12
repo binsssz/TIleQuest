@@ -66,7 +66,8 @@ namespace TileQuest
         // hearth and defend it from a queued wave of goblins and skeletons
         // (FIFO WaveSpawner). Each enemy's strike damage comes from its spawn info.
         private const int MaxNights = 5;
-        private const float HearthHitSeconds = 1.2f;     // between one enemy's strikes
+        // Time from the start of one wave-enemy swing to the start of its next (tuning knob).
+        private const float EnemyAttackCycleSeconds = 1.0f;
         private const float MarchSpeedScale = 2f;        // EnemySpawnInfo.Speed -> tiles per second
         private const float NightDimAlpha = 0.5f;
         private const float BannerSeconds = 3f;
@@ -76,7 +77,9 @@ namespace TileQuest
         private int _kills;                              // wave enemies defeated (Milestone 4 score)
         private bool _allNightsSurvived;
         private readonly PlayerStats _stats = new();
-        private const int PlayerDamageScale = 2;         // wave enemy hearth damage x this = damage to the player per strike
+        // Wave enemy HearthDamage x this = damage to the player per hit (tuning knob).
+        // Hearth damage itself is unscaled.
+        private const int PlayerDamageScale = 1;
         private bool _pendingNightStart;
         private string _bannerText = string.Empty;
         private float _bannerRemaining;
@@ -134,6 +137,16 @@ namespace TileQuest
         private const int EnemyFrameCount = 4;
         private const float EnemyFramesPerSecond = 6f;
         private const int EnemySpriteHeight = 28;   // head-to-feet in source pixels, scaled to one tile
+
+        // Wave-enemy attack animation (draw-only; never moves GridPosition/PixelPosition).
+        // Swing phases by Enemy.AttackProgress: wind-up 0 -> impact (Enemy.AttackImpactProgress),
+        // lunge until EnemyLungeEndProgress, then recovery back to the resting offset.
+        private const float EnemyWindupBackPixels = 3f;     // lean away from the target during wind-up
+        private const float EnemyLungePixels = 8f;          // snap toward the target at impact
+        private const int EnemyWindupHandLiftPixels = 6;    // goblin hands rise during wind-up
+        private const float EnemyLungeEndProgress = 0.8f;
+        private const float EnemySlashSeconds = 0.12f;      // how long the slash arc stays visible
+        private static readonly Color EnemyWindupTint = new(255, 170, 170);
 
         // Orc/Run/Run-Sheet.png: 6 frames of 64x64 in one row, side view facing
         // right, feet on the bottom edge. Used while a goblin is marching; the
@@ -428,12 +441,17 @@ namespace TileQuest
                 .ToArray();
         }
 
-        // Places a few stationary targets near each map's spawn point so the
-        // swing has something to hit.
+        // Village training dummies are disabled; they block the peaceful town
+        // vibe and are not needed during daytime exploration.
         private void SpawnTrainingEnemies()
         {
             foreach (var (mapType, map) in _maps)
             {
+                if (mapType == WorldMapType.Village)
+                {
+                    continue;
+                }
+
                 List<Enemy> enemies = _enemies[mapType];
                 foreach (Point offset in TrainingEnemyOffsets)
                 {
@@ -626,29 +644,51 @@ namespace TileQuest
 
             foreach (Enemy enemy in enemies)
             {
-                if (!enemy.IsWaveEnemy || !enemy.IsAlive || enemy.IsSliding || enemy.IsStunned)
+                if (!enemy.IsWaveEnemy)
                 {
                     continue;
                 }
 
-                // An enemy beside the player hits the player first; otherwise
-                // it carries on to the hearth.
+                // The impact moment of a swing: damage lands only if the target
+                // is still in reach right now, otherwise the swing misses.
+                if (enemy.ConsumeImpact())
+                {
+                    ResolveEnemyImpact(enemy);
+                }
+
+                if (!enemy.IsAlive || enemy.IsSliding || enemy.IsStunned)
+                {
+                    continue;
+                }
+
+                // A swinging enemy stands still and keeps facing its target.
+                if (enemy.IsAttacking)
+                {
+                    FaceEnemyTarget(enemy, enemy.AttackTargetsPlayer);
+                    continue;
+                }
+
+                // An enemy beside the player swings at the player first;
+                // otherwise it swings at the hearth if adjacent, else keeps marching.
                 if (!_stats.IsDead && IsAdjacentToPlayer(enemy.GridPosition))
                 {
-                    enemy.FaceToward(_player.GridPosition.X);
-                    if (enemy.TryStrike(HearthHitSeconds))
+                    FaceEnemyTarget(enemy, targetsPlayer: true);
+                    Vector2 toPlayer = new(
+                        _player.GridPosition.X - enemy.GridPosition.X,
+                        _player.GridPosition.Y - enemy.GridPosition.Y);
+                    if (enemy.TryBeginAttack(EnemyAttackCycleSeconds, toPlayer, targetsPlayer: true))
                     {
-                        _stats.TakeDamage(enemy.HearthDamage * PlayerDamageScale);
+                        Console.WriteLine($"[Night] {EnemyLogName(enemy)} swing begins (at player)");
                     }
                     continue;
                 }
 
                 if (_hearth.IsAdjacentTo(enemy.GridPosition))
                 {
-                    enemy.FaceToward(_hearth.Position.X + (_hearth.Size - 1) / 2f);
-                    if (enemy.TryStrike(HearthHitSeconds))
+                    FaceEnemyTarget(enemy, targetsPlayer: false);
+                    if (enemy.TryBeginAttack(EnemyAttackCycleSeconds, HearthDirectionFrom(enemy.GridPosition), targetsPlayer: false))
                     {
-                        _hearth.TakeDamage(enemy.HearthDamage);
+                        Console.WriteLine($"[Night] {EnemyLogName(enemy)} swing begins (at hearth)");
                     }
                     continue;
                 }
@@ -676,6 +716,60 @@ namespace TileQuest
                 !enemies.Any(enemy => enemy.IsWaveEnemy && enemy.IsAlive))
             {
                 EndNight();
+            }
+        }
+
+        private static string EnemyLogName(Enemy enemy)
+        {
+            return enemy.Kind == EnemyKind.Skeleton ? "skeleton" : "goblin";
+        }
+
+        private void FaceEnemyTarget(Enemy enemy, bool targetsPlayer)
+        {
+            enemy.FaceToward(targetsPlayer
+                ? _player.GridPosition.X
+                : _hearth.Position.X + (_hearth.Size - 1) / 2f);
+        }
+
+        // Unit step from an enemy tile to the nearest hearth tile (the enemy is
+        // orthogonally adjacent, so this is one of the four axis directions).
+        private Vector2 HearthDirectionFrom(Point tile)
+        {
+            int nearestX = Math.Clamp(tile.X, _hearth.Position.X, _hearth.Position.X + _hearth.Size - 1);
+            int nearestY = Math.Clamp(tile.Y, _hearth.Position.Y, _hearth.Position.Y + _hearth.Size - 1);
+            return new Vector2(nearestX - tile.X, nearestY - tile.Y);
+        }
+
+        // Called once per swing at the impact moment. The player is hit only if
+        // still alive and orthogonally adjacent; the hearth only if still adjacent.
+        private void ResolveEnemyImpact(Enemy enemy)
+        {
+            string name = EnemyLogName(enemy);
+            if (enemy.AttackTargetsPlayer)
+            {
+                if (!_stats.IsDead && IsAdjacentToPlayer(enemy.GridPosition))
+                {
+                    bool landed = _stats.TakeDamage(enemy.HearthDamage * PlayerDamageScale);
+                    Console.WriteLine(landed
+                        ? $"[Night] {name} impact hit (player, {enemy.HearthDamage * PlayerDamageScale} damage)"
+                        : $"[Night] {name} impact hit (player) but the damage grace period absorbed it");
+                }
+                else
+                {
+                    Console.WriteLine($"[Night] {name} impact missed (player moved away)");
+                }
+
+                return;
+            }
+
+            if (_hearth.IsAdjacentTo(enemy.GridPosition))
+            {
+                _hearth.TakeDamage(enemy.HearthDamage);
+                Console.WriteLine($"[Night] {name} impact hit (hearth, {enemy.HearthDamage} damage)");
+            }
+            else
+            {
+                Console.WriteLine($"[Night] {name} impact missed (hearth no longer adjacent)");
             }
         }
 
@@ -1369,7 +1463,7 @@ namespace TileQuest
             string title = night ? $"NIGHT {_nightNumber} OF {MaxNights}" : $"DAY {_dayCount}";
             string detail = night
                 ? $"FOES LEFT {FoesRemaining()}  HEARTH {_hearth.Health}"
-                : $"NIGHTS SURVIVED {_dayCount - 1} OF {MaxNights}";
+                : $"NIGHTS SURVIVED: {_dayCount - 1} OF {MaxNights}";
 
             const int panelWidth = 360;
             const int panelHeight = 58;
@@ -2680,12 +2774,12 @@ namespace TileQuest
         // Draws one hand cell so its centre lands on `center` (source pixels in the
         // body frame), using the same scale and tint as the body. When the body
         // is flipped to face left the hand's centre and sprite are mirrored too.
-        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint, bool flip)
+        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint, bool flip, int offsetY = 0)
         {
             var source = new Rectangle(column * HandCellSize, GoblinHandRow * HandCellSize, HandCellSize, HandCellSize);
             int centerX = flip ? EnemyCellSize - center.X : center.X;
             int handX = bodyX + (int)Math.Round((centerX - HandCellSize / 2) * scale);
-            int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + GoblinBodyBobY[frame]) * scale);
+            int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + GoblinBodyBobY[frame]) * scale) + offsetY;
             int handSize = (int)Math.Round(HandCellSize * scale);
             SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
             _spriteBatch.Draw(
@@ -2722,13 +2816,108 @@ namespace TileQuest
                 0f);
         }
 
+        private static float SmoothStep01(float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            return t * t * (3f - 2f * t);
+        }
+
+        // Draw-only attack pose from Enemy.AttackProgress. Wind-up: ease back from
+        // the target, hands up, tint toward red. Impact: snap forward, hands down.
+        // Recovery: ease back to the resting position. Not attacking: no change.
+        private static void GetEnemyAttackPose(Enemy enemy, out Vector2 offset, out int handLift, out Color tint)
+        {
+            offset = Vector2.Zero;
+            handLift = 0;
+            tint = Color.White;
+            if (!enemy.IsAttacking || !enemy.IsAlive)
+            {
+                return;
+            }
+
+            float progress = enemy.AttackProgress;
+            Vector2 direction = enemy.AttackDirection;
+            float impact = Enemy.AttackImpactProgress;
+
+            if (progress < impact)
+            {
+                float t = SmoothStep01(progress / impact);
+                offset = -direction * (EnemyWindupBackPixels * t);
+                handLift = -(int)Math.Round(EnemyWindupHandLiftPixels * t);
+                tint = Color.Lerp(Color.White, EnemyWindupTint, t);
+            }
+            else if (progress < EnemyLungeEndProgress)
+            {
+                // Snap forward over the first quarter of the impact phase, then hold.
+                float t = (progress - impact) / (EnemyLungeEndProgress - impact);
+                float snap = SmoothStep01(Math.Min(1f, t * 4f));
+                offset = direction * MathHelper.Lerp(-EnemyWindupBackPixels, EnemyLungePixels, snap);
+                handLift = -(int)Math.Round(EnemyWindupHandLiftPixels * (1f - snap));
+                tint = Color.Lerp(EnemyWindupTint, Color.White, t);
+            }
+            else
+            {
+                float t = SmoothStep01((progress - EnemyLungeEndProgress) / (1f - EnemyLungeEndProgress));
+                offset = direction * (EnemyLungePixels * (1f - t));
+            }
+        }
+
+        // A short slash arc on the target side, drawn from small pixel rectangles
+        // (same style as DrawSwingEffect). Visible for EnemySlashSeconds from impact.
+        private void DrawEnemySlash(Enemy enemy)
+        {
+            if (!enemy.IsAttacking || !enemy.IsAlive)
+            {
+                return;
+            }
+
+            float slashProgress = (enemy.AttackProgress - Enemy.AttackImpactProgress) * Enemy.AttackSwingSeconds / EnemySlashSeconds;
+            if (slashProgress < 0f || slashProgress >= 1f)
+            {
+                return;
+            }
+
+            Vector2 center = enemy.PixelPosition + new Vector2(TileSize / 2f, TileSize / 2f);
+            Vector2 direction = enemy.AttackDirection;
+            const int segments = 9;
+            const float arcHalfWidth = 0.9f;   // radians either side of the attack direction
+            float radius = TileSize * 0.65f;
+            float reveal = Math.Min(1f, slashProgress * 2.5f);   // the arc sweeps across, then fades
+            float fade = 1f - slashProgress;
+            Color slashColor = Color.Lerp(Color.White, new Color(255, 150, 130), 0.5f);
+
+            for (int i = 0; i < segments; i++)
+            {
+                float t = i / (float)(segments - 1);
+                if (t > reveal)
+                {
+                    break;
+                }
+
+                float angle = MathHelper.Lerp(-arcHalfWidth, arcHalfWidth, t);
+                float cos = (float)Math.Cos(angle);
+                float sin = (float)Math.Sin(angle);
+                Vector2 rotated = new(direction.X * cos - direction.Y * sin, direction.X * sin + direction.Y * cos);
+                Vector2 point = center + rotated * radius;
+                int size = i == segments / 2 ? 4 : 3;
+                var box = new Rectangle((int)Math.Round(point.X) - size / 2, (int)Math.Round(point.Y) - size / 2, size, size);
+                _spriteBatch.Draw(_pixelTexture, box, slashColor * (0.85f * fade));
+            }
+        }
+
         private void DrawEnemy(Enemy enemy)
         {
             float scale = TileSize / (float)EnemySpriteHeight;
             bool flip = enemy.FacingLeft;
             SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
 
-            Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : Color.White;
+            // Attack pose (draw-only): body offset along the attack direction,
+            // goblin hand lift, and a wind-up tint. The hit flash wins over the tint.
+            GetEnemyAttackPose(enemy, out Vector2 attackOffset, out int handLift, out Color attackTint);
+            int offsetX = (int)Math.Round(attackOffset.X);
+            int offsetY = (int)Math.Round(attackOffset.Y);
+
+            Color tint = enemy.HitFlashRemaining > 0f ? new Color(255, 110, 110) : attackTint;
             tint *= enemy.DeathFade;
 
             // Skeletons and goblins share the same sheet layout and body size.
@@ -2737,7 +2926,7 @@ namespace TileQuest
             Texture2D idleTexture = skeleton ? _skeletonIdleTextures[(int)enemy.Variant] : _enemyTexture;
             Texture2D runTexture = skeleton ? _skeletonRunTextures[(int)enemy.Variant] : _enemyRunTexture;
 
-            if (enemy.IsRunning)
+            if (enemy.IsRunning && !enemy.IsAttacking)
             {
                 // Marching enemies use the run cycle. Its cells are 64x64 with
                 // the body low and centred, so it is scaled like the idle sprite
@@ -2769,14 +2958,14 @@ namespace TileQuest
                 int frame = (int)(enemy.AnimationTime * EnemyFramesPerSecond) % EnemyFrameCount;
                 var source = new Rectangle(frame * EnemyCellSize, 0, EnemyCellSize, EnemyCellSize);
                 int size = (int)Math.Round(EnemyCellSize * scale);
-                int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2;
-                int y = (int)enemy.PixelPosition.Y + TileSize - size;
+                int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2 + offsetX;
+                int y = (int)enemy.PixelPosition.Y + TileSize - size + offsetY;
 
                 // The back hand is drawn first so the body covers part of it; the
                 // front hand goes on top. Facing left swaps which side each is on.
                 if (!skeleton)
                 {
-                    DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip);
+                    DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip, handLift);
                 }
 
                 _spriteBatch.Draw(
@@ -2791,13 +2980,15 @@ namespace TileQuest
 
                 if (!skeleton)
                 {
-                    DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip);
+                    DrawEnemyHand(1, GoblinFrontHandCenter, frame, x, y, scale, tint, flip, handLift);
                 }
                 else
                 {
                     DrawSkeletonWeapon(SkeletonIdleWeaponHand, EnemyCellSize, x, y, scale, tint, flip);
                 }
             }
+
+            DrawEnemySlash(enemy);
 
             if (enemy.IsAlive && enemy.Health < enemy.MaxHealth)
             {

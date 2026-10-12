@@ -28,6 +28,7 @@ namespace TileQuest
             DemoBinarySearch();
             DemoInsertionSort();
             DemoPathField();
+            DemoEnemyAttack();
             Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
         }
 
@@ -350,6 +351,111 @@ namespace TileQuest
                 field.NextStep(new Point(1, 1), tile => tile == new Point(1, 2)) == null);
             Check("NextStep returns null once at the hearth",
                 field.NextStep(new Point(3, 1), _ => false) == null);
+        }
+
+        // Enemy attack cycle: wind-up -> one impact -> recovery, one swing per
+        // cycle, interrupted (not reset) by damage, wave enemies only. Enemy has
+        // no graphics dependencies, so it is built directly here.
+        private static void DemoEnemyAttack()
+        {
+            Console.WriteLine("Enemy attack cycle (Enemy)");
+            const float Cycle = 1f;
+            const float Step = 0.05f;
+
+            static Enemy NewWaveEnemy() => new(new Point(1, 1), 32, 20) { IsWaveEnemy = true };
+
+            // The first-strike delay (0.5 s) still holds, then an attack begins.
+            Enemy enemy = NewWaveEnemy();
+            Check("no attack during the first-strike delay",
+                !enemy.TryBeginAttack(Cycle, Vector2.UnitX, true) && !enemy.IsAttacking);
+            enemy.Update(0.6f);
+            bool began = enemy.TryBeginAttack(Cycle, new Vector2(3f, 0f), true);
+            Check("an attack begins once the delay has passed",
+                began && enemy.IsAttacking && enemy.AttackProgress == 0f &&
+                enemy.AttackTargetsPlayer && enemy.AttackDirection == Vector2.UnitX);
+            Check("a second begin is refused while swinging",
+                !enemy.TryBeginAttack(Cycle, Vector2.UnitX, true));
+
+            // Run 0.9 s of the cycle: exactly one impact, inside the swing window.
+            int impacts = 0;
+            float impactTime = -1f;
+            float elapsed = 0f;
+            bool progressedMonotonically = true;
+            float lastProgress = 0f;
+            for (int i = 0; i < 18; i++)
+            {
+                enemy.Update(Step);
+                elapsed += Step;
+                if (enemy.ConsumeImpact())
+                {
+                    impacts++;
+                    impactTime = elapsed;
+                }
+
+                if (enemy.IsAttacking)
+                {
+                    progressedMonotonically &= enemy.AttackProgress >= lastProgress;
+                    lastProgress = enemy.AttackProgress;
+                }
+            }
+
+            float impactMin = Enemy.AttackImpactProgress * Enemy.AttackSwingSeconds;
+            Check("ConsumeImpact fires exactly once per swing", impacts == 1);
+            Check("the impact lands when progress passes AttackImpactProgress",
+                impactTime >= impactMin && impactTime <= impactMin + 2 * Step);
+            Check("progress only rises during a swing", progressedMonotonically);
+            Check("the swing ends after AttackSwingSeconds (progress back to 0)",
+                !enemy.IsAttacking && enemy.AttackProgress == 0f);
+
+            // The cycle is measured from the start of the swing.
+            Check("a second begin is refused until the cycle time has passed",
+                !enemy.TryBeginAttack(Cycle, Vector2.UnitX, true));
+            for (int i = 0; i < 3; i++)
+            {
+                enemy.Update(Step);
+            }
+
+            Check("the next attack begins once a full cycle has passed",
+                enemy.TryBeginAttack(Cycle, Vector2.UnitY, false) && !enemy.AttackTargetsPlayer);
+
+            // Damage cancels a swing without resetting the cooldown.
+            Enemy hit = NewWaveEnemy();
+            hit.Update(0.6f);
+            hit.TryBeginAttack(Cycle, Vector2.UnitX, true);
+            hit.Update(0.1f);
+            hit.TakeDamage(1);
+            Check("TakeDamage cancels the swing", !hit.IsAttacking && hit.AttackProgress == 0f);
+            Check("no instant new attack after being hit",
+                !hit.TryBeginAttack(Cycle, Vector2.UnitX, true));
+            bool strayImpact = false;
+            for (int i = 0; i < 8; i++)
+            {
+                hit.Update(Step);
+                strayImpact |= hit.ConsumeImpact();
+            }
+
+            Check("a cancelled swing never produces an impact", !strayImpact);
+            Check("still on cooldown after the stun is over (0.5 s into the cycle)",
+                !hit.IsStunned && !hit.TryBeginAttack(Cycle, Vector2.UnitX, true));
+            hit.Update(0.6f);
+            Check("it can attack again once the cycle has passed",
+                hit.TryBeginAttack(Cycle, Vector2.UnitX, true));
+
+            // Death cancels too, and the dead never attack.
+            Enemy dying = NewWaveEnemy();
+            dying.Update(0.6f);
+            dying.TryBeginAttack(Cycle, Vector2.UnitX, true);
+            dying.TakeDamage(dying.MaxHealth);
+            dying.Update(1.5f);
+            Check("death cancels the swing and a dead enemy cannot attack",
+                !dying.IsAttacking && !dying.ConsumeImpact() &&
+                !dying.TryBeginAttack(Cycle, Vector2.UnitX, true));
+
+            // Training and dungeon enemies are not wave enemies and stay passive.
+            var passive = new Enemy(new Point(2, 2), 32, 20);
+            passive.Update(2f);
+            Check("a non-wave enemy never attacks",
+                !passive.TryBeginAttack(Cycle, Vector2.UnitX, true) && !passive.IsAttacking);
         }
 
         // Insertion sort: highest value first.

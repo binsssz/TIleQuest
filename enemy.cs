@@ -7,13 +7,20 @@ namespace TileQuest
     // A target the player can hit. Grid-locked like the player: it always
     // occupies exactly one tile and slides smoothly between tiles. Training
     // enemies only move when knocked back; wave enemies (IsWaveEnemy) are also
-    // marched toward the hearth by the game via MarchTo and strike it with
-    // TryStrike.
+    // marched toward the hearth by the game via MarchTo and attack with a
+    // wind-up / impact / recovery swing (TryBeginAttack, ConsumeImpact).
     public class Enemy
     {
         private const float KnockbackTilesPerSecond = 14f;
         private const float StunSeconds = 0.35f;        // after a hit, so knockback is not walked straight back
         private const float FirstStrikeDelaySeconds = 0.5f;
+
+        // One attack swing: AttackProgress runs 0 -> 1 over AttackSwingSeconds.
+        // The damage lands once, when progress passes AttackImpactProgress
+        // (wind-up before it, recovery after it). The time between swings is
+        // the cycle length the game passes to TryBeginAttack.
+        public const float AttackSwingSeconds = 1f;
+        public const float AttackImpactProgress = 0.6f;
         private const float HitFlashSeconds = 0.15f;
         private const float DeathFadeSeconds = 0.35f;
         private const float RunLingerSeconds = 0.12f;   // bridges the one-frame gap between two march steps
@@ -24,6 +31,8 @@ namespace TileQuest
         private float _slideTilesPerSecond = KnockbackTilesPerSecond;
         private float _stunRemaining;
         private float _attackCooldownRemaining = FirstStrikeDelaySeconds;
+        private float _attackElapsed;                   // seconds into the current swing
+        private bool _impactPending;                    // impact reached, not yet consumed
         private bool _marching;                         // the last slide was a march step, not a knockback
         private float _runLingerRemaining;
 
@@ -67,6 +76,19 @@ namespace TileQuest
 
         public bool IsStunned => _stunRemaining > 0f;
 
+        // True from the start of a swing until it ends (or is cancelled).
+        public bool IsAttacking { get; private set; }
+
+        // 0 -> 1 across the swing; 0 when not attacking.
+        public float AttackProgress =>
+            IsAttacking ? Math.Clamp(_attackElapsed / AttackSwingSeconds, 0f, 1f) : 0f;
+
+        // Unit vector toward the target, set when the swing begins (for drawing).
+        public Vector2 AttackDirection { get; private set; } = Vector2.UnitX;
+
+        // True if the current (or last) swing was aimed at the player, false for the hearth.
+        public bool AttackTargetsPlayer { get; private set; }
+
         // 1 -> 0 while a dead enemy fades out.
         public float DeathFade => IsAlive ? 1f : Math.Clamp(_deathRemainingSeconds / DeathFadeSeconds, 0f, 1f);
 
@@ -93,6 +115,10 @@ namespace TileQuest
             Health = Math.Max(0, Health - amount);
             HitFlashRemaining = HitFlashSeconds;
             _stunRemaining = StunSeconds;
+
+            // Getting hit interrupts a swing but does not reset the cooldown,
+            // so the enemy cannot instantly attack again.
+            CancelAttack();
             if (!IsAlive)
             {
                 _deathRemainingSeconds = DeathFadeSeconds;
@@ -164,16 +190,49 @@ namespace TileQuest
             }
         }
 
-        // Starts a strike if the cooldown has run out; returns whether it did.
-        public bool TryStrike(float cooldownSeconds)
+        // Starts a swing toward `direction` if this is a living, unstunned wave
+        // enemy that is not already swinging and whose cooldown has run out.
+        // The cooldown restarts at the START of the swing, so the time from one
+        // swing to the next is exactly cycleSeconds. Returns whether it began.
+        public bool TryBeginAttack(float cycleSeconds, Vector2 direction, bool targetsPlayer)
         {
-            if (!IsAlive || _attackCooldownRemaining > 0f)
+            if (!IsWaveEnemy || !IsAlive || IsStunned || IsAttacking || _attackCooldownRemaining > 0f)
             {
                 return false;
             }
 
-            _attackCooldownRemaining = cooldownSeconds;
+            IsAttacking = true;
+            _attackElapsed = 0f;
+            _impactPending = false;
+            AttackTargetsPlayer = targetsPlayer;
+            AttackDirection = direction.LengthSquared() > 0f
+                ? Vector2.Normalize(direction)
+                : Vector2.UnitX;
+            _attackCooldownRemaining = cycleSeconds;
             return true;
+        }
+
+        // True exactly once per swing: on the first update where AttackProgress
+        // passes AttackImpactProgress. The game applies the damage (or misses)
+        // when this returns true.
+        public bool ConsumeImpact()
+        {
+            if (!_impactPending)
+            {
+                return false;
+            }
+
+            _impactPending = false;
+            return true;
+        }
+
+        // Ends the swing without touching the cooldown and drops any impact
+        // that has not been consumed yet.
+        private void CancelAttack()
+        {
+            IsAttacking = false;
+            _attackElapsed = 0f;
+            _impactPending = false;
         }
 
         public void Update(float deltaSeconds)
@@ -189,6 +248,25 @@ namespace TileQuest
             if (!IsAlive)
             {
                 _deathRemainingSeconds = Math.Max(0f, _deathRemainingSeconds - deltaSeconds);
+                CancelAttack();
+            }
+
+            if (IsAttacking)
+            {
+                float before = _attackElapsed;
+                _attackElapsed += deltaSeconds;
+                float impactAt = AttackImpactProgress * AttackSwingSeconds;
+                if (before < impactAt && _attackElapsed >= impactAt)
+                {
+                    _impactPending = true;
+                }
+
+                if (_attackElapsed >= AttackSwingSeconds)
+                {
+                    // Swing over. A pending impact stays until the game consumes it.
+                    IsAttacking = false;
+                    _attackElapsed = 0f;
+                }
             }
 
             Vector2 toTarget = _targetPixelPosition - PixelPosition;
