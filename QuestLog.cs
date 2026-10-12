@@ -303,6 +303,31 @@ namespace TileQuest
             CatchUpCurrentNight();
         }
 
+        public IReadOnlyList<KeyValuePair<string, long>> GetGatheredResourceTotals()
+        {
+            return new List<KeyValuePair<string, long>>(_gatheredResources);
+        }
+
+        public void RestoreGatheredResourceTotals(IEnumerable<KeyValuePair<string, long>> totals)
+        {
+            if (totals == null)
+            {
+                throw new ArgumentNullException(nameof(totals));
+            }
+
+            _gatheredResources.Clear();
+            foreach (KeyValuePair<string, long> total in totals)
+            {
+                if (ItemCatalog.CategoryOf(total.Key) != ItemCategory.Resource || total.Value <= 0)
+                {
+                    throw new ArgumentException("Gathered-resource totals must contain positive quantities of resources.", nameof(totals));
+                }
+
+                _gatheredResources[total.Key] = total.Value;
+            }
+            CatchUpCurrentResource();
+        }
+
         public void Reset()
         {
             Head = null;

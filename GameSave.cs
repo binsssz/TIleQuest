@@ -67,6 +67,7 @@ namespace TileQuest
         public string? EquippedWeaponName { get; set; }
         public int QuestIndex { get; set; }
         public int QuestProgress { get; set; }
+        public List<SavedQuestResource> GatheredResources { get; set; } = new();
         public List<SavedItem> Inventory { get; set; } = new();
         public List<SavedMap> Maps { get; set; } = new();
         public List<SavedChest> Chests { get; set; } = new();
@@ -123,6 +124,14 @@ namespace TileQuest
 
         public SavedPoint Tile { get; set; } = new();
         public List<SavedItem> Items { get; set; } = new();
+    }
+
+    internal sealed class SavedQuestResource
+    {
+        public SavedQuestResource() { }
+
+        public string Type { get; set; } = string.Empty;
+        public long Quantity { get; set; }
     }
 
     internal sealed class SavedEnemy

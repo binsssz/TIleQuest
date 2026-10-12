@@ -129,6 +129,16 @@ namespace TileQuest
             }
         }
 
+        public void RestoreHealth(int health)
+        {
+            if (health <= 0 || health > MaxHealth)
+            {
+                throw new ArgumentOutOfRangeException(nameof(health), health, "Restored enemy health is outside its valid range.");
+            }
+
+            Health = health;
+        }
+
         public IEnumerable<Item> DropLoot()
         {
             if (Health > 0)

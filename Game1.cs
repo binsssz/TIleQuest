@@ -1115,6 +1115,14 @@ namespace TileQuest
                 QuestProgress = _questLog.CurrentProgress,
                 SpawnTimer = _spawner.TimeUntilNextSpawn,
             };
+            foreach (KeyValuePair<string, long> total in _questLog.GetGatheredResourceTotals())
+            {
+                save.GatheredResources.Add(new SavedQuestResource
+                {
+                    Type = total.Key,
+                    Quantity = total.Value,
+                });
+            }
 
             foreach (ItemCategory category in ItemCatalog.Categories)
             {
@@ -1230,6 +1238,7 @@ namespace TileQuest
                 save.SpawnTimer < 0f ||
                 save.Inventory == null || save.Maps == null || save.Chests == null ||
                 save.Enemies == null || save.PendingSpawns == null ||
+                save.GatheredResources == null ||
                 save.Maps.Count != Enum.GetValues<WorldMapType>().Length)
             {
                 throw new InvalidDataException("The save file contains invalid game state.");
@@ -1268,6 +1277,16 @@ namespace TileQuest
             foreach (SavedItem item in save.Inventory)
             {
                 ValidateSavedItem(item);
+            }
+            var gatheredResourceTypes = new HashSet<string>(StringComparer.Ordinal);
+            foreach (SavedQuestResource resource in save.GatheredResources)
+            {
+                if (resource == null || !ItemCatalog.IsKnown(resource.Type) ||
+                    ItemCatalog.CategoryOf(resource.Type) != ItemCategory.Resource ||
+                    resource.Quantity <= 0 || !gatheredResourceTypes.Add(resource.Type))
+                {
+                    throw new InvalidDataException("The save file contains invalid quest resource totals.");
+                }
             }
             foreach (SavedChest chest in save.Chests)
             {
@@ -1442,7 +1461,7 @@ namespace TileQuest
                     HearthDamage = savedEnemy.HearthDamage,
                     MarchTilesPerSecond = savedEnemy.MarchTilesPerSecond,
                 };
-                enemy.TakeDamage(savedEnemy.MaxHealth - savedEnemy.Health);
+                enemy.RestoreHealth(savedEnemy.Health);
                 _enemies[savedEnemy.Map].Add(enemy);
             }
 
@@ -1459,6 +1478,12 @@ namespace TileQuest
                 InsertBonusQuest();
             }
             _questLog.RestoreProgress(save.QuestIndex, save.QuestProgress);
+            var gatheredResources = new List<KeyValuePair<string, long>>(save.GatheredResources.Count);
+            foreach (SavedQuestResource resource in save.GatheredResources)
+            {
+                gatheredResources.Add(new KeyValuePair<string, long>(resource.Type, resource.Quantity));
+            }
+            _questLog.RestoreGatheredResourceTotals(gatheredResources);
 
             _stats.RestoreState(save.Health, save.Energy);
             _hearth.RestoreHealth(save.HearthHealth);
