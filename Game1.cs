@@ -172,8 +172,6 @@ namespace TileQuest
         // The upper body bobs between idle frames (the legs stay put), so the
         // hands move down with it. One entry per idle frame.
         private static readonly int[] GoblinBodyBobY = { 0, 2, 2, 1 };
-        private const int MaxTrainingEnemiesPerMap = 4;
-
         // The dungeon is packed with stationary skeleton targets. Placement is a
         // seeded shuffle of the floor tiles (same layout every run), keeping each
         // skeleton at least DungeonSkeletonSpacing tiles from the others and more
@@ -182,10 +180,11 @@ namespace TileQuest
         private const int DungeonSkeletonSpacing = 2;
         private const int DungeonSkeletonSafeRadius = 4;
         private const int DungeonSkeletonSeed = 7;
-        private static readonly Point[] TrainingEnemyOffsets =
-        {
-            new(2, 0), new(3, 2), new(5, -1), new(-4, 1), new(-3, -1), new(6, 1), new(2, 1), new(-5, -1),
-        };
+
+        // Forest and dungeon enemies notice the player within this many walking
+        // tiles, then chase and attack with the same swing cycle as the night wave.
+        private const int HostileAggroTiles = 7;
+        private const float HostileMarchTilesPerSecond = 1.5f;   // skeleton variants scale this by SpeedScale
 
         // player.png is a grid of 48x48 cells, 6 frames per row. Rows 0-5 are
         // standing and walking; rows 6-8 contain the four-frame swing for
@@ -329,7 +328,6 @@ namespace TileQuest
             PrepareMapVisuals();
 
             // After the forest trunk tiles are set, so enemies never spawn on one.
-            SpawnTrainingEnemies();
             SpawnDungeonSkeletons();
         }
 
@@ -411,7 +409,7 @@ namespace TileQuest
                     pixels[y * size + x] = new Color(value, value, value, value);
                 }
             }
-
+ 
             _hearthGlowTexture = new Texture2D(GraphicsDevice, size, size);
             _hearthGlowTexture.SetData(pixels);
         }
@@ -439,34 +437,6 @@ namespace TileQuest
                 .OrderBy(item => item.BaseY)
                 .ThenBy(item => item is DepthSortedStructure ? 0 : 1)
                 .ToArray();
-        }
-
-        // Village training dummies are disabled; they block the peaceful town
-        // vibe and are not needed during daytime exploration.
-        private void SpawnTrainingEnemies()
-        {
-            foreach (var (mapType, map) in _maps)
-            {
-                if (mapType == WorldMapType.Village)
-                {
-                    continue;
-                }
-
-                List<Enemy> enemies = _enemies[mapType];
-                foreach (Point offset in TrainingEnemyOffsets)
-                {
-                    if (enemies.Count >= MaxTrainingEnemiesPerMap)
-                    {
-                        break;
-                    }
-
-                    var tile = new Point(map.SpawnPoint.X + offset.X, map.SpawnPoint.Y + offset.Y);
-                    if (map.IsWalkable(tile))
-                    {
-                        enemies.Add(new Enemy(tile, TileSize, EnemyMaxHealth));
-                    }
-                }
-            }
         }
 
         // Fills the dungeon with stationary skeleton targets (all four variants,
@@ -523,6 +493,9 @@ namespace TileQuest
                 {
                     Kind = EnemyKind.Skeleton,
                     Variant = variant,
+                    IsHostile = true,
+                    HearthDamage = SkeletonStats.HearthDamage(variant),
+                    MarchTilesPerSecond = HostileMarchTilesPerSecond * SkeletonStats.SpeedScale(variant),
                 });
                 placed++;
             }
@@ -745,18 +718,19 @@ namespace TileQuest
         private void ResolveEnemyImpact(Enemy enemy)
         {
             string name = EnemyLogName(enemy);
+            string tag = enemy.IsWaveEnemy ? "[Night]" : "[Hostile]";
             if (enemy.AttackTargetsPlayer)
             {
                 if (!_stats.IsDead && IsAdjacentToPlayer(enemy.GridPosition))
                 {
                     bool landed = _stats.TakeDamage(enemy.HearthDamage * PlayerDamageScale);
                     Console.WriteLine(landed
-                        ? $"[Night] {name} impact hit (player, {enemy.HearthDamage * PlayerDamageScale} damage)"
-                        : $"[Night] {name} impact hit (player) but the damage grace period absorbed it");
+                        ? $"{tag} {name} impact hit (player, {enemy.HearthDamage * PlayerDamageScale} damage)"
+                        : $"{tag} {name} impact hit (player) but the damage grace period absorbed it");
                 }
                 else
                 {
-                    Console.WriteLine($"[Night] {name} impact missed (player moved away)");
+                    Console.WriteLine($"{tag} {name} impact missed (player moved away)");
                 }
 
                 return;
@@ -765,12 +739,138 @@ namespace TileQuest
             if (_hearth.IsAdjacentTo(enemy.GridPosition))
             {
                 _hearth.TakeDamage(enemy.HearthDamage);
-                Console.WriteLine($"[Night] {name} impact hit (hearth, {enemy.HearthDamage} damage)");
+                Console.WriteLine($"{tag} {name} impact hit (hearth, {enemy.HearthDamage} damage)");
             }
             else
             {
-                Console.WriteLine($"[Night] {name} impact missed (hearth no longer adjacent)");
+                Console.WriteLine($"{tag} {name} impact missed (hearth no longer adjacent)");
             }
+        }
+
+        // Forest and dungeon enemies: when the player is within HostileAggroTiles
+        // walking tiles they step toward the player and swing when adjacent. Same
+        // swing cycle as the night wave (impact only lands if the player is still
+        // adjacent), so stepping away dodges it. Only the map the player is on updates.
+        private void UpdateHostileEnemies()
+        {
+            List<Enemy> enemies = _enemies[_map.MapType];
+            Dictionary<Point, int>? field = null;
+
+            foreach (Enemy enemy in enemies)
+            {
+                if (!enemy.IsHostile)
+                {
+                    continue;
+                }
+
+                if (enemy.ConsumeImpact())
+                {
+                    ResolveEnemyImpact(enemy);
+                }
+
+                if (!enemy.IsAlive || enemy.IsSliding || enemy.IsStunned || _stats.IsDead)
+                {
+                    continue;
+                }
+
+                if (enemy.IsAttacking)
+                {
+                    enemy.FaceToward(_player.GridPosition.X);
+                    continue;
+                }
+
+                if (IsAdjacentToPlayer(enemy.GridPosition))
+                {
+                    enemy.FaceToward(_player.GridPosition.X);
+                    Vector2 toPlayer = new(
+                        _player.GridPosition.X - enemy.GridPosition.X,
+                        _player.GridPosition.Y - enemy.GridPosition.Y);
+                    if (enemy.TryBeginAttack(EnemyAttackCycleSeconds, toPlayer, targetsPlayer: true))
+                    {
+                        Console.WriteLine($"[Hostile] {EnemyLogName(enemy)} swing begins (at player)");
+                    }
+
+                    continue;
+                }
+
+                if (ChebyshevDistance(enemy.GridPosition, _player.GridPosition) > HostileAggroTiles)
+                {
+                    continue;
+                }
+
+                field ??= BuildPlayerDistanceField();
+                if (!field.TryGetValue(enemy.GridPosition, out int here))
+                {
+                    continue;   // out of walking range (behind a wall, say)
+                }
+
+                Point? best = null;
+                int bestDistance = here;
+                foreach (Point offset in NeighbourOffsets)
+                {
+                    var tile = new Point(enemy.GridPosition.X + offset.X, enemy.GridPosition.Y + offset.Y);
+                    if (field.TryGetValue(tile, out int distance) && distance < bestDistance &&
+                        tile != _player.GridPosition && !_map.TryGetTravel(tile, out _) &&
+                        !enemies.Any(other => other != enemy && other.IsAlive && other.GridPosition == tile))
+                    {
+                        best = tile;
+                        bestDistance = distance;
+                    }
+                }
+
+                if (best is Point step)
+                {
+                    enemy.MarchTo(step);
+                }
+            }
+
+            if (_stats.IsDead)
+            {
+                FallInTheWilds();
+            }
+        }
+
+        private static readonly Point[] NeighbourOffsets =
+        {
+            new(1, 0), new(-1, 0), new(0, 1), new(0, -1),
+        };
+
+        // Walking distance from the player, out to HostileAggroTiles, over walkable tiles.
+        private Dictionary<Point, int> BuildPlayerDistanceField()
+        {
+            var distances = new Dictionary<Point, int> { [_player.GridPosition] = 0 };
+            var queue = new Queue<Point>();
+            queue.Enqueue(_player.GridPosition);
+            while (queue.Count > 0)
+            {
+                Point current = queue.Dequeue();
+                int next = distances[current] + 1;
+                if (next > HostileAggroTiles)
+                {
+                    continue;
+                }
+
+                foreach (Point offset in NeighbourOffsets)
+                {
+                    var tile = new Point(current.X + offset.X, current.Y + offset.Y);
+                    if (!distances.ContainsKey(tile) && _map.IsWalkable(tile))
+                    {
+                        distances[tile] = next;
+                        queue.Enqueue(tile);
+                    }
+                }
+            }
+
+            return distances;
+        }
+
+        // The player died in the forest or dungeon: back to the village at full health.
+        private void FallInTheWilds()
+        {
+            _stats.RestoreFully();
+            SwitchMap(new MapTravel(WorldMapType.Village, _maps[WorldMapType.Village].SpawnPoint));
+            ShowBanner("YOU FELL");
+            Console.WriteLine("[Hostile] The player fell and woke up in the village.");
         }
 
         private bool TrySpawnWaveEnemy(EnemySpawnInfo info, List<Enemy> enemies)
@@ -1284,6 +1384,11 @@ namespace TileQuest
                     {
                         UpdateNight((float)gameTime.ElapsedGameTime.TotalSeconds);
                     }
+
+                    if (_map.MapType != WorldMapType.Village)
+                    {
+                        UpdateHostileEnemies();
+                    }
                 }
             }
 
@@ -1462,8 +1567,8 @@ namespace TileQuest
             bool night = _gameState == GameState.Night;
             string title = night ? $"NIGHT {_nightNumber} OF {MaxNights}" : $"DAY {_dayCount}";
             string detail = night
-                ? $"FOES LEFT {FoesRemaining()}  HEARTH {_hearth.Health}"
-                : $"NIGHTS SURVIVED: {_dayCount - 1} OF {MaxNights}";
+                ? $"FOES LEFT - {FoesRemaining()}  HEARTH DURABILITY - {_hearth.Health}"
+                : $"NIGHTS SURVIVED - {_dayCount - 1} OF {MaxNights}";
 
             const int panelWidth = 360;
             const int panelHeight = 58;
@@ -1544,20 +1649,26 @@ namespace TileQuest
 
         private void DrawInventoryHud()
         {
-            var itemIndexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            var stacks = new List<(string Name, int Quantity)>();
+            var foodAndWeapons = new List<(string Name, string Category, int Quantity)>();
+            var resources = new List<(string Name, string Category, int Quantity)>();
 
             foreach (Item item in _inventory.Items)
             {
-                if (itemIndexes.TryGetValue(item.Name, out int index))
+                List<(string Name, string Category, int Quantity)> section =
+                    item.Category == Crafting.GearCategory || item.Category == FoodBook.Category
+                        ? foodAndWeapons
+                        : resources;
+                int index = section.FindIndex(stack =>
+                    string.Equals(stack.Name, item.Name, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(stack.Category, item.Category, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0)
                 {
-                    (string name, int quantity) = stacks[index];
-                    stacks[index] = (name, quantity + item.Quantity);
+                    var stack = section[index];
+                    section[index] = (stack.Name, stack.Category, stack.Quantity + item.Quantity);
                 }
                 else
                 {
-                    itemIndexes.Add(item.Name, stacks.Count);
-                    stacks.Add((item.Name, item.Quantity));
+                    section.Add((item.Name, item.Category, item.Quantity));
                 }
             }
 
@@ -1567,42 +1678,53 @@ namespace TileQuest
             const int slotSize = 44;
             const int slotGap = 6;
             const int panelWidth = 220;
-            const int panelHeight = 146;
+            const int panelHeight = 166;
             int panelX = viewport.Width - panelWidth - 14;
             int panelY = viewport.Height - panelHeight - 14;
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "INVENTORY", new Point(panelX + 8, panelY + 8), 2, Color.Wheat);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, "WEAPONS + FOOD", new Point(panelX + 8, panelY + 8), 1, Color.Wheat);
 
-            for (int slot = 0; slot < 8; slot++)
+            for (int row = 0; row < 2; row++)
             {
-                int column = slot % 4;
-                int row = slot / 4;
-                int x = panelX + 8 + column * (slotSize + slotGap);
-                int y = panelY + 28 + row * (slotSize + slotGap);
-                var slotBounds = new Rectangle(x, y, slotSize, slotSize);
-                _spriteBatch.Draw(_pixelTexture, slotBounds, new Color(32, 25, 20, 235));
-                DrawHudBorder(slotBounds, new Color(156, 119, 69));
-
-                if (slot >= stacks.Count)
+                List<(string Name, string Category, int Quantity)> section =
+                    row == 0 ? foodAndWeapons : resources;
+                int sectionY = panelY + 22 + row * 68;
+                if (row == 1)
                 {
-                    continue;
+                    BitmapFont.Draw(
+                        _spriteBatch, _pixelTexture, "RESOURCES",
+                        new Point(panelX + 8, sectionY), 1, Color.Wheat);
                 }
 
-                (string name, int quantity) = stacks[slot];
-                var iconBounds = new Rectangle(x + 10, y + 5, 16, 16);
-                DrawInventoryItemIcon(name, iconBounds);
+                int slotY = sectionY + 12;
+                for (int column = 0; column < 4; column++)
+                {
+                    int x = panelX + 8 + column * (slotSize + slotGap);
+                    var slotBounds = new Rectangle(x, slotY, slotSize, slotSize);
+                    _spriteBatch.Draw(_pixelTexture, slotBounds, new Color(32, 25, 20, 235));
+                    DrawHudBorder(slotBounds, new Color(156, 119, 69));
 
-                string quantityText = quantity.ToString();
-                int quantityWidth = quantityText.Length * 6;
-                BitmapFont.Draw(
-                    _spriteBatch,
-                    _pixelTexture,
-                    quantityText,
-                    new Point(x + slotSize - quantityWidth - 3, y + slotSize - 10),
-                    1,
-                    Color.White);
+                    if (column >= section.Count)
+                    {
+                        continue;
+                    }
+
+                    var stack = section[column];
+                    var iconBounds = new Rectangle(x + 10, slotY + 5, 16, 16);
+                    DrawInventoryItemIcon(stack.Name, iconBounds);
+
+                    string quantityText = stack.Quantity.ToString();
+                    int quantityWidth = quantityText.Length * 6;
+                    BitmapFont.Draw(
+                        _spriteBatch,
+                        _pixelTexture,
+                        quantityText,
+                        new Point(x + slotSize - quantityWidth - 3, slotY + slotSize - 10),
+                        1,
+                        Color.White);
+                }
             }
 
             // The best crafted weapon, just above the inventory grid.

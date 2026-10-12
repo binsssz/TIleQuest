@@ -5,10 +5,10 @@ using Microsoft.Xna.Framework;
 namespace TileQuest
 {
     // A target the player can hit. Grid-locked like the player: it always
-    // occupies exactly one tile and slides smoothly between tiles. Training
-    // enemies only move when knocked back; wave enemies (IsWaveEnemy) are also
-    // marched toward the hearth by the game via MarchTo and attack with a
-    // wind-up / impact / recovery swing (TryBeginAttack, ConsumeImpact).
+    // occupies exactly one tile and slides smoothly between tiles. Wave enemies
+    // (IsWaveEnemy) are marched toward the hearth by the game via MarchTo and
+    // attack with a wind-up / impact / recovery swing (TryBeginAttack,
+    // ConsumeImpact).
     public class Enemy
     {
         private const float KnockbackTilesPerSecond = 14f;
@@ -19,7 +19,7 @@ namespace TileQuest
         // The damage lands once, when progress passes AttackImpactProgress
         // (wind-up before it, recovery after it). The time between swings is
         // the cycle length the game passes to TryBeginAttack.
-        public const float AttackSwingSeconds = 1f;
+        public const float AttackSwingSeconds = 0.45f;
         public const float AttackImpactProgress = 0.6f;
         private const float HitFlashSeconds = 0.15f;
         private const float DeathFadeSeconds = 0.35f;
@@ -48,8 +48,12 @@ namespace TileQuest
 
         public bool IsAlive => Health > 0;
 
-        // True for enemies spawned by the night wave (not training dummies).
+        // True for enemies spawned by the night wave.
         public bool IsWaveEnemy { get; init; }
+
+        // True for forest and dungeon enemies that chase and attack the player
+        // on their own. Wave enemies attack too.
+        public bool IsHostile { get; init; }
 
         // Which monster this is; the renderer picks sprites from it.
         public EnemyKind Kind { get; init; } = EnemyKind.Goblin;
@@ -190,13 +194,13 @@ namespace TileQuest
             }
         }
 
-        // Starts a swing toward `direction` if this is a living, unstunned wave
-        // enemy that is not already swinging and whose cooldown has run out.
+        // Starts a swing toward `direction` if this is a living, unstunned wave or
+        // hostile enemy that is not already swinging and whose cooldown has run out.
         // The cooldown restarts at the START of the swing, so the time from one
         // swing to the next is exactly cycleSeconds. Returns whether it began.
         public bool TryBeginAttack(float cycleSeconds, Vector2 direction, bool targetsPlayer)
         {
-            if (!IsWaveEnemy || !IsAlive || IsStunned || IsAttacking || _attackCooldownRemaining > 0f)
+            if ((!IsWaveEnemy && !IsHostile) || !IsAlive || IsStunned || IsAttacking || _attackCooldownRemaining > 0f)
             {
                 return false;
             }

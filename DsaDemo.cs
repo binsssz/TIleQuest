@@ -456,6 +456,12 @@ namespace TileQuest
             passive.Update(2f);
             Check("a non-wave enemy never attacks",
                 !passive.TryBeginAttack(Cycle, Vector2.UnitX, true) && !passive.IsAttacking);
+
+            // Forest and dungeon enemies are hostile (not wave) and do attack.
+            var hostile = new Enemy(new Point(3, 3), 32, 20) { IsHostile = true };
+            hostile.Update(0.6f);
+            Check("a hostile (forest/dungeon) enemy can attack",
+                hostile.TryBeginAttack(Cycle, Vector2.UnitX, true) && hostile.IsAttacking);
         }
 
         // Insertion sort: highest value first.
