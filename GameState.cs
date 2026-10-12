@@ -10,12 +10,13 @@ namespace TileQuest
 
     // Which full-screen layer the game is on. Kept separate from GameState
     // (Day/Night) so the in-game day/night checks never see the menus.
-    // Title and HowToPlay draw over the dimmed village; Update only handles
-    // menu input there, so nothing in the world moves behind them.
+    // Title, Pause, and HowToPlay draw over the dimmed village; Update only
+    // handles menu input there, so nothing in the world moves behind them.
     public enum GameScreen
     {
         Title,
         HowToPlay,
+        Pause,
         Playing,
     }
 }

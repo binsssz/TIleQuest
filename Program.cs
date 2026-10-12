@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 
 try
 {
-    // Phase 1 self-check: exercises every DSA module in isolation and prints
-    // PASS/FAIL lines to the console before the game window opens.
+    // Self-check the DSA modules and print PASS/FAIL lines before the game opens.
     TileQuest.DsaDemo.Run();
 
     using var game = new TileQuest.Game1();

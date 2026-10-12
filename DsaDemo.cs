@@ -5,9 +5,8 @@ using Microsoft.Xna.Framework;
 
 namespace TileQuest
 {
-    // Phase 1 proof that each DSA module works on its own, before any of them
-    // is wired into the game. Run() prints one PASS/FAIL line per check and a
-    // summary. Nothing here touches MonoGame graphics.
+    // Startup self-checks for Queue, Stack, Linked List (quest log), Binary
+    // Search, Insertion Sort, and Linear Search. Nothing touches graphics.
     public static class DsaDemo
     {
         private static int _passed;
@@ -18,18 +17,156 @@ namespace TileQuest
             _passed = 0;
             _failed = 0;
 
-            Console.WriteLine("=== DSA module self-check ===");
+            Console.WriteLine(
+                "=== DSA modules: Queue, Stack, Linked List (quest log), Binary Search, Insertion Sort, Linear Search ===");
             DemoQueue();
             DemoStack();
             DemoCraftingUndo();
             DemoPlayerStats();
             DemoFoodVendor();
             DemoDictionaryInventory();
+            DemoQuestLog();
+            DemoLinearSearch();
             DemoBinarySearch();
             DemoInsertionSort();
             DemoPathField();
             DemoEnemyAttack();
             Console.WriteLine($"=== {_passed} passed, {_failed} failed ===");
+        }
+
+        private static void DemoQuestLog()
+        {
+            Console.WriteLine("Linked List (quest log)");
+
+            var appendLog = new QuestLog();
+            int initialCount = appendLog.Count;
+            var appendedWood = new QuestNode("Append Wood", QuestKind.GatherResource, "Wood", 1);
+            var appendedStone = new QuestNode("Append Stone", QuestKind.GatherResource, "Stone", 1);
+            appendLog.AddLast(appendedWood);
+            appendLog.AddLast(appendedStone);
+            QuestNode[] appended = appendLog.Enumerate().ToArray();
+            Check("AddLast preserves append order",
+                appended.Length == initialCount + 2 &&
+                ReferenceEquals(appended[^2], appendedWood) &&
+                ReferenceEquals(appended[^1], appendedStone));
+
+            var advancingLog = new QuestLog();
+            Check("night 1 remains locked before the gather and craft objectives",
+                !advancingLog.IsReadyForNightOne);
+            advancingLog.OnResourceGathered("Wood", 10);
+            Check("night 1 remains locked after gathering only wood",
+                !advancingLog.IsReadyForNightOne);
+            Check("Current advances to the next quest after completion",
+                advancingLog.Current?.Title == "Gather 5 Stone" &&
+                advancingLog.CurrentIndex == 1 &&
+                advancingLog.CurrentProgress == 0);
+            advancingLog.OnResourceGathered("Stone", 5);
+            Check("night 1 remains locked until a weapon is crafted",
+                !advancingLog.IsReadyForNightOne);
+            advancingLog.OnItemCrafted("Wooden Sword");
+            Check("night 1 unlocks after all prerequisite quests",
+                advancingLog.IsReadyForNightOne);
+
+            var earlyStoneLog = new QuestLog();
+            earlyStoneLog.OnResourceGathered("Stone", 5);
+            Check("stone gathered before wood is retained for its quest",
+                earlyStoneLog.Current?.Title == "Gather 10 Wood" &&
+                earlyStoneLog.Find(node => node.Title == "Gather 5 Stone")?.Progress == 0);
+            earlyStoneLog.OnResourceGathered("Wood", 10);
+            Check("the stone quest completes after its earlier pickups are applied",
+                earlyStoneLog.Find(node => node.Title == "Gather 5 Stone")?.IsCompleted == true &&
+                earlyStoneLog.Current?.Title == "Craft your first weapon" &&
+                earlyStoneLog.CompletedCount == 2);
+
+            var insertionLog = new QuestLog();
+            QuestNode originalCurrent = insertionLog.Current!;
+            QuestNode originalNext = originalCurrent.Next!;
+            var bonus = new QuestNode("Defeat 2 enemies", QuestKind.DefeatEnemies, 2, 2);
+            insertionLog.InsertAfterCurrent(bonus);
+            QuestNode[] inserted = insertionLog.Enumerate().ToArray();
+            Check("InsertAfterCurrent places a node immediately after Current",
+                ReferenceEquals(inserted[0], originalCurrent) &&
+                ReferenceEquals(inserted[1], bonus) &&
+                ReferenceEquals(inserted[2], originalNext));
+            insertionLog.OnResourceGathered("Wood", 10);
+            Check("Current advances to the inserted node",
+                ReferenceEquals(insertionLog.Current, bonus));
+            insertionLog.OnEnemyKilled();
+            insertionLog.OnEnemyKilled();
+            Check("the inserted chain still reaches its end",
+                insertionLog.Current?.Title == "Gather 5 Stone");
+            insertionLog.OnResourceGathered("Stone", 5);
+            insertionLog.OnItemCrafted("Iron Sword");
+            for (int night = 1; night <= 5; night++)
+            {
+                insertionLog.OnNightSurvived(night);
+            }
+            Check("IsAllComplete is true after the last quest",
+                insertionLog.IsAllComplete &&
+                insertionLog.CompletedCount == insertionLog.Count &&
+                insertionLog.CurrentIndex == insertionLog.Count);
+
+            Check("Find returns the matching node",
+                ReferenceEquals(insertionLog.Find(node => node.Kind == QuestKind.DefeatEnemies), bonus));
+            Check("Find returns null when there is no match",
+                insertionLog.Find(node => node.Title == "Not in the log") == null);
+
+            var catchUpLog = new QuestLog();
+            catchUpLog.OnNightSurvived(2);
+            catchUpLog.OnResourceGathered("Wood", 10);
+            catchUpLog.OnResourceGathered("Stone", 5);
+            catchUpLog.OnItemCrafted("Wooden Sword");
+            Check("SurviveNight objectives catch up when they become Current",
+                catchUpLog.CompletedCount == 5 &&
+                catchUpLog.Current?.Title == "Survive Night 3" &&
+                catchUpLog.Find(node => node.Target is int night && night == 2)?.IsCompleted == true);
+
+            var anchoredInsertionLog = new QuestLog();
+            QuestNode nightTwo = anchoredInsertionLog.Find(node =>
+                node.Kind == QuestKind.SurviveNight && node.Target is int night && night == 2)!;
+            QuestNode nightThree = nightTwo.Next!;
+            var nightBonus = new QuestNode("Defeat 5 enemies", QuestKind.DefeatEnemies, 5, 5);
+            anchoredInsertionLog.InsertAfterCurrent(nightBonus, nightTwo);
+            Check("anchored InsertAfterCurrent keeps the Night 2 bonus before Night 3",
+                ReferenceEquals(nightTwo.Next, nightBonus) &&
+                ReferenceEquals(nightBonus.Next, nightThree) &&
+                anchoredInsertionLog.Current?.Title == "Gather 10 Wood");
+
+            advancingLog.OnResourceGathered("Wood", 4);
+            advancingLog.InsertAfterCurrent(
+                new QuestNode("Temporary", QuestKind.GatherResource, "Wood", 1));
+            advancingLog.Reset();
+            Check("Reset restores the default chain and clears progress",
+                advancingLog.Count == 8 &&
+                advancingLog.CompletedCount == 0 &&
+                advancingLog.Current?.Title == "Gather 10 Wood" &&
+                advancingLog.CurrentProgress == 0 &&
+                advancingLog.Find(node => node.Title == "Temporary") == null);
+
+            var restoredLog = new QuestLog();
+            restoredLog.RestoreProgress(1, 4);
+            Check("RestoreProgress restores the current index and progress",
+                restoredLog.CurrentIndex == 1 &&
+                restoredLog.CurrentProgress == 4 &&
+                restoredLog.CompletedCount == 1);
+        }
+
+        private static void DemoLinearSearch()
+        {
+            Console.WriteLine("Linear Search (LinearSearchUtil)");
+            int[] values = { 4, 7, 7, 9 };
+            Check("FindIndex returns the first matching index",
+                LinearSearchUtil.FindIndex(values, value => value == 9) == 3);
+            Check("Find returns the first matching item",
+                LinearSearchUtil.Find(values, value => value == 7) == 7);
+            Check("Find returns null when there is no match",
+                LinearSearchUtil.Find(new[] { "wood", "stone" }, value => value == "iron") == null);
+            Check("no match returns -1",
+                LinearSearchUtil.FindIndex(values, value => value == 10) == -1);
+            Check("an empty list returns -1",
+                LinearSearchUtil.FindIndex(Array.Empty<int>(), value => value == 1) == -1);
+            Check("duplicates return the first index",
+                LinearSearchUtil.FindIndex(values, value => value == 7) == 1);
         }
 
         private static void Check(string label, bool ok)

@@ -57,6 +57,7 @@ namespace TileQuest
         private readonly Dictionary<WorldMapType, TileMap> _maps = new();
         private readonly Inventory _inventory = new();
         private readonly ActionHistory _history = new();   // LIFO undo stack for crafting (U key)
+        private readonly QuestLog _questLog = new();
         private Player _player = null!;
         private Camera2D _camera = null!;
         private MapTravel? _pendingTravel;
@@ -73,6 +74,7 @@ namespace TileQuest
         private const float BannerSeconds = 3f;
         private GameState _gameState = GameState.Day;
         private GameScreen _screen = GameScreen.Title;   // the game opens on the title menu
+        private GameScreen _previousMenuScreen = GameScreen.Title;
         private int _titleSelection;
         private int _dayCount = 1;
         private int _nightNumber;                        // 0 until the first night starts
@@ -113,6 +115,19 @@ namespace TileQuest
         private const int SwingDamage = 5;
         private bool _traderOpen;
         private int _traderSelection;
+        private bool _questPanelOpen;
+        private bool _bonusQuestInserted;
+        private bool _hasTalkedToWizard;
+
+        private enum InteractableKind
+        {
+            Trader,
+            FoodVendor,
+            Hearth,
+            Wizard,
+        }
+
+        private readonly record struct InteractableCandidate(InteractableKind Kind, Point Position);
 
         // Food vendor (Peasant_A, same 64x64 4-frame layout as the trader).
         // She is not in the village yet: set FoodVendorTile to a walkable
@@ -223,6 +238,7 @@ namespace TileQuest
             };
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
+            _questLog.QuestCompleted += OnQuestCompleted;
         }
 
         protected override void Initialize()
@@ -526,6 +542,7 @@ namespace TileQuest
                 if (_map.TryHarvestResource(swingTile, out var harvestedItem, out bool nodeDepleted))
                 {
                     _inventory.Add(harvestedItem.Name, harvestedItem.Quantity);
+                    _questLog.OnResourceGathered(harvestedItem.Name, harvestedItem.Quantity);
                     mapChanged |= nodeDepleted;
                 }
             }
@@ -536,19 +553,35 @@ namespace TileQuest
             }
 
             Point push = _player.FacingVector;
-            foreach (Enemy enemy in _enemies[_map.MapType])
+            List<Enemy> enemies = _enemies[_map.MapType];
+            var hitEnemies = new bool[enemies.Count];
+            foreach (Point swingTile in swingTiles)
             {
-                if (!enemy.IsAlive || !swingTiles.Contains(enemy.GridPosition))
+                int enemyIndex = LinearSearchUtil.FindIndex(
+                    enemies,
+                    candidate => candidate.IsAlive && candidate.GridPosition == swingTile);
+                if (enemyIndex >= 0)
+                {
+                    hitEnemies[enemyIndex] = true;
+                }
+
+            }
+
+            for (int index = 0; index < enemies.Count; index++)
+            {
+                if (!hitEnemies[index])
                 {
                     continue;
                 }
-
+                Enemy enemy = enemies[index];
                 enemy.TakeDamage(SwingDamage + WeaponBonus());
                 if (!enemy.IsAlive)
                 {
+                    _questLog.OnEnemyKilled();
                     foreach (var drop in enemy.DropLoot())
                     {
                         _inventory.Add(drop.Name, drop.Quantity);
+                        _questLog.OnResourceGathered(drop.Name, drop.Quantity);
                     }
                     if (enemy.IsWaveEnemy)
                     {
@@ -575,6 +608,11 @@ namespace TileQuest
         {
             _bannerText = text;
             _bannerRemaining = BannerSeconds;
+        }
+
+        private void OnQuestCompleted(QuestNode quest)
+        {
+            ShowBanner($"QUEST COMPLETE: {quest.Title.ToUpperInvariant()}");
         }
 
         // Day -> Night: builds the BFS distance field from the hearth, keeps the
@@ -926,6 +964,21 @@ namespace TileQuest
                 ShowBanner($"DAWN OF DAY {_dayCount}");
             }
 
+            if (_nightNumber == 2 && !_bonusQuestInserted)
+            {
+                QuestNode? nightTwoQuest = _questLog.Find(quest =>
+                    quest.Kind == QuestKind.SurviveNight &&
+                    quest.Target is int night && night == 2);
+                if (nightTwoQuest != null)
+                {
+                    _questLog.InsertAfterCurrent(
+                        new QuestNode("Defeat 5 enemies", QuestKind.DefeatEnemies, 5, 5),
+                        nightTwoQuest);
+                    _bonusQuestInserted = true;
+                }
+            }
+            _questLog.OnNightSurvived(_nightNumber);
+
             Console.WriteLine($"[Night] Night {_nightNumber} cleared. Day {_dayCount} begins. Kills so far: {_kills}.");
         }
 
@@ -1009,6 +1062,7 @@ namespace TileQuest
             if (_map.TryCollectPickup(position, out var pickup))
             {
                 _inventory.Add(pickup.Name, pickup.Quantity);
+                _questLog.OnResourceGathered(pickup.Name, pickup.Quantity);
             }
         }
 
@@ -1322,63 +1376,26 @@ namespace TileQuest
             }
             else if (WasPressed(keyboard, Keys.Escape))
             {
-                Exit();
+                _screen = GameScreen.Pause;
+                _titleSelection = 0;
             }
             else
             {
                 bool attackPressed = WasPressed(keyboard, Keys.Space) || WasPressed(keyboard, Keys.J);
-                bool interacted = WasPressed(keyboard, Keys.E) && TryOpenNearbyChest();
+                bool interactPressed = WasPressed(keyboard, Keys.E);
+                if (WasPressed(keyboard, Keys.Q))
+                {
+                    _questPanelOpen = !_questPanelOpen;
+                }
+
+                bool interacted = interactPressed && TryOpenNearbyChest();
+                if (!interacted && interactPressed)
+                {
+                    interacted = TryInteractWithNearbyWorldObject();
+                }
                 if (WasPressed(keyboard, Keys.U))
                 {
                     TryUndoLastAction();
-                }
-
-                if (!interacted &&
-                    _gameState == GameState.Day &&
-                    WasPressed(keyboard, Keys.E) &&
-                    IsPlayerBesideTrader())
-                {
-                    _traderOpen = true;
-                    _traderSelection = 0;
-                    interacted = true;
-                }
-
-                if (!interacted &&
-                    _gameState == GameState.Day &&
-                    WasPressed(keyboard, Keys.E) &&
-                    IsPlayerBesideFoodVendor())
-                {
-                    _foodShopOpen = true;
-                    _foodSelection = 0;
-                    interacted = true;
-                }
-
-                if (!interacted &&
-                    _gameState == GameState.Day &&
-                    WasPressed(keyboard, Keys.E) &&
-                    IsPlayerBesideHearth())
-                {
-                    if (_allNightsSurvived)
-                    {
-                        ShowBanner("THE VILLAGE IS SAFE");
-                    }
-                    else
-                    {
-                        _pendingNightStart = true;
-                    }
-                    interacted = true;
-                }
-
-                if (!interacted &&
-                    _gameState == GameState.Day &&
-                    _map.MapType == WorldMapType.Village &&
-                    WasPressed(keyboard, Keys.E) &&
-                    IsPlayerBesideWizard())
-                {
-                    _pendingTravel = new MapTravel(
-                        WorldMapType.Forest,
-                        _maps[WorldMapType.Forest].SpawnPoint);
-                    interacted = true;
                 }
 
                 if (!interacted && (WasPressed(keyboard, Keys.I) || WasPressed(keyboard, Keys.E)))
@@ -1496,6 +1513,7 @@ namespace TileQuest
 
             DrawInventoryHud();
             DrawDayNightHud();
+            DrawQuestHud();
 
             if (_openChest != null)
             {
@@ -1589,14 +1607,14 @@ namespace TileQuest
 
         // Top-centre status: day or night counter, wave progress, hearth HP, plus
         // the "beside the hearth" hint and the fading event banner. Text uses
-        // only letters BitmapFont has (no J K M P Q X Z or punctuation but = ?).
+        // Text uses uppercase glyphs supported by BitmapFont.
         private void DrawDayNightHud()
         {
             Viewport viewport = GraphicsDevice.Viewport;
             bool night = _gameState == GameState.Night;
             string title = night ? $"NIGHT {_nightNumber} OF {MaxNights}" : $"DAY {_dayCount}";
             string detail = night
-                ? $"FOES LEFT - {FoesRemaining()}  HEARTH DURABILITY - {_hearth.Health}"
+                ? $"FOES LEFT - {FoesRemaining()}  HEARTH HP - {_hearth.Health}"
                 : $"NIGHTS SURVIVED - {_dayCount - 1} OF {MaxNights}";
 
             const int panelWidth = 360;
@@ -1655,14 +1673,21 @@ namespace TileQuest
         }
 
         // ---- Title menu and How to Play -------------------------------------
-        // Text uses only glyphs BitmapFont has: letters, digits and : + - / . | = ?
-        // (no commas, apostrophes, brackets or exclamation marks).
+        // Text uses uppercase letters, digits, and punctuation supported by BitmapFont.
 
         private static readonly (string Label, bool Enabled)[] TitleEntries =
         {
             ("NEW GAME", true),
             ("LOAD GAME", false),   // saving is not implemented yet
             ("HOW TO PLAY", true),
+            ("QUIT", true),
+        };
+
+        private static readonly (string Label, bool Enabled)[] PauseEntries =
+        {
+            ("RESUME", true),
+            ("HOW TO PLAY", true),
+            ("RETURN TO TITLE", true),
             ("QUIT", true),
         };
 
@@ -1674,8 +1699,53 @@ namespace TileQuest
             {
                 if (confirm || WasPressed(keyboard, Keys.Escape))
                 {
-                    _screen = GameScreen.Title;
+                    _screen = _previousMenuScreen;
                 }
+                return;
+            }
+
+            if (_screen == GameScreen.Pause)
+            {
+                if (WasPressed(keyboard, Keys.Escape))
+                {
+                    _screen = GameScreen.Playing;
+                    return;
+                }
+
+                int step = 0;
+                if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
+                {
+                    step = -1;
+                }
+                else if (WasPressed(keyboard, Keys.Down) || WasPressed(keyboard, Keys.S))
+                {
+                    step = 1;
+                }
+
+                if (step != 0)
+                {
+                    _titleSelection = (_titleSelection + step + PauseEntries.Length) % PauseEntries.Length;
+                }
+                else if (confirm && PauseEntries[_titleSelection].Enabled)
+                {
+                    switch (PauseEntries[_titleSelection].Label)
+                    {
+                        case "RESUME":
+                            _screen = GameScreen.Playing;
+                            break;
+                        case "HOW TO PLAY":
+                            _previousMenuScreen = GameScreen.Pause;
+                            _screen = GameScreen.HowToPlay;
+                            break;
+                        case "RETURN TO TITLE":
+                            _screen = GameScreen.Title;
+                            break;
+                        case "QUIT":
+                            Exit();
+                            break;
+                    }
+                }
+
                 return;
             }
 
@@ -1685,22 +1755,22 @@ namespace TileQuest
                 return;
             }
 
-            int step = 0;
+            int stepTitle = 0;
             if (WasPressed(keyboard, Keys.Up) || WasPressed(keyboard, Keys.W))
             {
-                step = -1;
+                stepTitle = -1;
             }
             else if (WasPressed(keyboard, Keys.Down) || WasPressed(keyboard, Keys.S))
             {
-                step = 1;
+                stepTitle = 1;
             }
 
-            if (step != 0)
+            if (stepTitle != 0)
             {
                 // Skip disabled entries (Load Game) so the cursor never rests on them.
                 do
                 {
-                    _titleSelection = (_titleSelection + step + TitleEntries.Length) % TitleEntries.Length;
+                    _titleSelection = (_titleSelection + stepTitle + TitleEntries.Length) % TitleEntries.Length;
                 }
                 while (!TitleEntries[_titleSelection].Enabled);
             }
@@ -1711,9 +1781,14 @@ namespace TileQuest
                     case "NEW GAME":
                         // The world is already freshly built at launch, so starting
                         // just hands control to the game.
+                        _questLog.Reset();
+                        _questPanelOpen = false;
+                        _bonusQuestInserted = false;
+                        _hasTalkedToWizard = false;
                         _screen = GameScreen.Playing;
                         break;
                     case "HOW TO PLAY":
+                        _previousMenuScreen = GameScreen.Title;
                         _screen = GameScreen.HowToPlay;
                         break;
                     case "QUIT":
@@ -1733,6 +1808,10 @@ namespace TileQuest
             {
                 DrawHowToPlay(viewport);
             }
+            else if (_screen == GameScreen.Pause)
+            {
+                DrawPauseMenu(viewport, gameTime);
+            }
             else
             {
                 DrawTitle(viewport, gameTime);
@@ -1745,6 +1824,35 @@ namespace TileQuest
         {
             int x = (viewport.Width - text.Length * 6 * scale) / 2;
             BitmapFont.Draw(_spriteBatch, _pixelTexture, text, new Point(x, y), scale, color);
+        }
+
+        private void DrawPauseMenu(Viewport viewport, GameTime gameTime)
+        {
+            const string title = "PAUSED";
+            int titleX = (viewport.Width - title.Length * 6 * 4) / 2;
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX + 3, 120 + 3), 4, Color.Black * 0.8f);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, title, new Point(titleX, 120), 4, Color.Gold);
+
+            const int rowHeight = 44;
+            const int panelWidth = 360;
+            int panelHeight = PauseEntries.Length * rowHeight + 20;
+            var panel = new Rectangle((viewport.Width - panelWidth) / 2, 190, panelWidth, panelHeight);
+            DrawHudPanel(panel);
+
+            for (int i = 0; i < PauseEntries.Length; i++)
+            {
+                (string label, bool enabled) = PauseEntries[i];
+                bool selected = i == _titleSelection;
+                var row = new Rectangle(panel.X + 10, panel.Y + 10 + i * rowHeight, panel.Width - 20, rowHeight - 6);
+                _spriteBatch.Draw(_pixelTexture, row, selected ? new Color(60, 46, 30, 245) : new Color(32, 25, 20, 235));
+                DrawHudBorder(row, selected ? Color.Gold : new Color(96, 74, 46));
+
+                Color color = !enabled ? new Color(110, 104, 98) : selected ? Color.White : Color.Wheat;
+                BitmapFont.Draw(_spriteBatch, _pixelTexture, label, new Point(row.X + 16, row.Y + 9), 3, color);
+            }
+
+            float pulse = 0.55f + 0.45f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 3f);
+            DrawCenteredText(viewport, "W/S SELECT    ENTER CONFIRM    ESC RESUME", viewport.Height - 44, 1, Color.LightGray * pulse);
         }
 
         private void DrawTitle(Viewport viewport, GameTime gameTime)
@@ -1793,12 +1901,15 @@ namespace TileQuest
                 ("WASD OR ARROWS - MOVE", Color.White),
                 ("SPACE OR J - SWING AT NODES AND ENEMIES", Color.White),
                 ("E - TALK / USE / OPEN BAG    I - BAG SORTED BY VALUE", Color.White),
+                ("Q - TOGGLE QUEST LOG", Color.White),
                 ("U - UNDO LAST CRAFT IN THE DAY", Color.White),
                 ("Y OR ENTER - CONFIRM    N OR ESC - CANCEL", Color.White),
+                ("ESC - PAUSE MENU", Color.White),
                 ("", Color.White),
                 ("TIPS", Color.Gold),
                 ("HIT STUMPS AND BOULDERS FOR WOOD AND STONE.", Color.White),
                 ("THE TRADER CRAFTS WEAPONS. THE VENDOR SELLS FOOD FOR GOLD.", Color.White),
+                ("TALK TO THE WIZARD AND COMPLETE YOUR QUESTS BEFORE NIGHT 1.", Color.White),
                 ("STAND BESIDE THE HEARTH AND PRESS E TO START A NIGHT.", Color.White),
             };
 
@@ -1906,6 +2017,49 @@ namespace TileQuest
             _spriteBatch.End();
         }
 
+        private void DrawQuestHud()
+        {
+            Viewport viewport = GraphicsDevice.Viewport;
+            QuestNode? current = _questLog.Current;
+            string objective = current == null
+                ? "ALL OBJECTIVES COMPLETE!"
+                : $"OBJECTIVE: {current.Title.ToUpperInvariant()} ({current.Progress}/{current.RequiredAmount})";
+            int objectiveWidth = Math.Min(viewport.Width - 24, objective.Length * 6 + 18);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            DrawHudPanel(new Rectangle(12, 112, objectiveWidth, 18));
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, objective, new Point(20, 117), 1, Color.Wheat);
+
+            if (_questPanelOpen)
+            {
+                const int panelX = 12;
+                const int panelY = 138;
+                const int panelWidth = 430;
+                const int lineHeight = 14;
+                int panelHeight = 32 + _questLog.Count * lineHeight;
+                DrawHudPanel(new Rectangle(panelX, panelY, panelWidth, panelHeight));
+                BitmapFont.Draw(
+                    _spriteBatch, _pixelTexture, "QUEST LOG (Q CLOSE)",
+                    new Point(panelX + 10, panelY + 7), 1, Color.Gold);
+
+                int lineY = panelY + 22;
+                foreach (QuestNode quest in _questLog.Enumerate())
+                {
+                    string state = quest.IsCompleted
+                        ? "DONE"
+                        : ReferenceEquals(quest, _questLog.Current) ? "CURRENT" : "UPCOMING";
+                    string line = $"{state}: {quest.Title.ToUpperInvariant()} ({quest.Progress}/{quest.RequiredAmount})";
+                    Color color = quest.IsCompleted
+                        ? new Color(145, 190, 145)
+                        : ReferenceEquals(quest, _questLog.Current) ? Color.Wheat : Color.LightGray;
+                    BitmapFont.Draw(_spriteBatch, _pixelTexture, line, new Point(panelX + 10, lineY), 1, color);
+                    lineY += lineHeight;
+                }
+            }
+
+            _spriteBatch.End();
+        }
+
         private static string GearLabel(CraftingRecipe? recipe)
         {
             return recipe == null ? "NONE" : $"{recipe.Name.ToUpperInvariant()} +{recipe.Power}";
@@ -1941,6 +2095,85 @@ namespace TileQuest
             return true;
         }
 
+        private bool TryInteractWithNearbyWorldObject()
+        {
+            if (_gameState != GameState.Day || _map.MapType != WorldMapType.Village)
+            {
+                return false;
+            }
+
+            var interactables = new List<InteractableCandidate>
+            {
+                new(InteractableKind.Trader, VillageCollisionLayout.TraderPosition),
+            };
+            if (FoodVendorTile is Point vendorTile)
+            {
+                interactables.Add(new InteractableCandidate(InteractableKind.FoodVendor, vendorTile));
+            }
+            interactables.Add(new InteractableCandidate(InteractableKind.Hearth, _hearth.Position));
+            interactables.Add(new InteractableCandidate(InteractableKind.Wizard, VillageCollisionLayout.WizardPosition));
+
+            Point playerTile = _player.GridPosition;
+            int nearbyIndex = LinearSearchUtil.FindIndex(
+                interactables,
+                interactable => IsAdjacentToInteractable(interactable, playerTile));
+            if (nearbyIndex < 0)
+            {
+                return false;
+            }
+
+            switch (interactables[nearbyIndex].Kind)
+            {
+                case InteractableKind.Trader:
+                    _traderOpen = true;
+                    _traderSelection = 0;
+                    break;
+                case InteractableKind.FoodVendor:
+                    _foodShopOpen = true;
+                    _foodSelection = 0;
+                    break;
+                case InteractableKind.Hearth:
+                    if (_allNightsSurvived)
+                    {
+                        ShowBanner("THE VILLAGE IS SAFE");
+                    }
+                    else if (_nightNumber == 0 && !_hasTalkedToWizard)
+                    {
+                        ShowBanner("TALK TO THE WIZARD FIRST");
+                    }
+                    else if (_nightNumber == 0 && !_questLog.IsReadyForNightOne)
+                    {
+                        ShowBanner("COMPLETE THE QUESTS FIRST");
+                    }
+                    else
+                    {
+                        _pendingNightStart = true;
+                    }
+                    break;
+                case InteractableKind.Wizard:
+                    _hasTalkedToWizard = true;
+                    _pendingTravel = new MapTravel(
+                        WorldMapType.Forest,
+                        _maps[WorldMapType.Forest].SpawnPoint);
+                    break;
+                default:
+                    throw new InvalidOperationException("Unknown interactable kind.");
+            }
+
+            return true;
+        }
+
+        private bool IsAdjacentToInteractable(InteractableCandidate interactable, Point playerTile)
+        {
+            if (interactable.Kind == InteractableKind.Hearth)
+            {
+                return _hearth.IsAdjacentTo(playerTile, includeDiagonals: true);
+            }
+
+            return Math.Abs(playerTile.X - interactable.Position.X) +
+                   Math.Abs(playerTile.Y - interactable.Position.Y) <= 1;
+        }
+
         private void UpdateChestMenu(KeyboardState keyboard)
         {
             if (WasPressed(keyboard, Keys.Escape))
@@ -1953,6 +2186,10 @@ namespace TileQuest
                 if (item != null)
                 {
                     _inventory.Add(item.Name, item.Quantity);
+                    if (ItemCatalog.CategoryOf(item.Name) == ItemCategory.Resource)
+                    {
+                        _questLog.OnResourceGathered(item.Name, item.Quantity);
+                    }
                 }
             }
             else if (WasPressed(keyboard, Keys.A))
@@ -2275,6 +2512,7 @@ namespace TileQuest
             if (Crafting.TryCraft(_inventory, _history, recipe))
             {
                 ShowBanner($"CRAFTED {recipe.Name.ToUpperInvariant()}");
+                _questLog.OnItemCrafted(recipe.Name);
             }
             else
             {
