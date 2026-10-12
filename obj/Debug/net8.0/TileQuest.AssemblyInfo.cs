@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TileQuest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+81e0bd5499e30a7013db29bcbc87bc27b56cfb15")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ce6b292b44ce2543f3f4d0f12f31e9f65a2b528c")]
 [assembly: System.Reflection.AssemblyProductAttribute("TileQuest")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TileQuest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

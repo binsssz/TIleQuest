@@ -22,6 +22,7 @@ namespace TileQuest
             DemoQueue();
             DemoStack();
             DemoCraftingUndo();
+            DemoPlayerStats();
             DemoLinkedList();
             DemoBinarySearch();
             DemoInsertionSort();
@@ -33,6 +34,52 @@ namespace TileQuest
         {
             Console.WriteLine($"  [{(ok ? "PASS" : "FAIL")}] {label}");
             if (ok) _passed++; else _failed++;
+        }
+
+        // Player stats: damage, grace period, hunger-style energy, healing.
+        private static void DemoPlayerStats()
+        {
+            Console.WriteLine("Player stats (PlayerStats)");
+            var stats = new PlayerStats();
+            Check("starts at full health and energy", stats.Health == 100 && stats.Energy == 100);
+
+            Check("damage lands and lowers health", stats.TakeDamage(30) && stats.Health == 70);
+            Check("a second hit during the grace period is ignored", !stats.TakeDamage(10) && stats.Health == 70);
+
+            stats.Update(1f);
+            Check("no healing right after a hit", stats.Health == 70);
+
+            var idle = new PlayerStats();
+            idle.Update(10f);
+            stats.Update(10f);
+            Check("hunger drains energy over time", idle.Energy < 100);
+            Check("health regenerates once things calm down", stats.Health > 70);
+            Check("healing burns extra energy", stats.Energy < idle.Energy);
+
+            var hungry = new PlayerStats();
+            for (int i = 0; i < 600; i++)
+            {
+                hungry.Update(1f);
+            }
+            Check("energy bottoms out at 0", hungry.Energy == 0);
+            hungry.TakeDamage(40);
+            hungry.Update(10f);
+            Check("no healing at zero energy", hungry.Health == 60);
+            hungry.RestoreEnergy(50);
+            hungry.Update(10f);
+            Check("eating lets health regenerate again", hungry.Health > 60 && hungry.Energy <= 50);
+
+            var full = new PlayerStats();
+            full.RestoreEnergy(500);
+            Check("energy never goes past the maximum", full.Energy == 100);
+
+            var doomed = new PlayerStats();
+            doomed.TakeDamage(60);
+            doomed.Update(1f);
+            doomed.TakeDamage(60);
+            Check("health reaching zero marks the player dead", doomed.IsDead && doomed.Health == 0);
+            doomed.RestoreFully();
+            Check("RestoreFully brings the player back", !doomed.IsDead && doomed.Health == 100 && doomed.Energy == 100);
         }
 
         // Queue: enemies must come out in the order they were enqueued.

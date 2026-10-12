@@ -5,63 +5,39 @@ namespace TileQuest
     // The player's health and energy. Free of MonoGame code so DsaDemo can
     // exercise it at startup.
     //
-    // Energy is spent on melee swings and refills on its own after a short
-    // pause. Health only regenerates while energy is completely full, so
-    // swinging constantly keeps you from healing: you have to stop and let
-    // the energy bar refill first.
+    // Energy works like a hunger bar. It drains slowly as time passes, is
+    // never spent on swings, and its only job is to fuel healing: while
+    // energy is left and health is missing, health regenerates and burns a
+    // little energy for every point restored. At zero energy there is no
+    // healing until the player eats (RestoreEnergy) or rests at dawn.
     public class PlayerStats
     {
         public const int MaxHealth = 100;
         public const int MaxEnergy = 100;
-        public const int SwingEnergyCost = 10;
 
-        private const float EnergyRegenDelaySeconds = 1.0f;   // pause after spending before energy refills
-        private const float EnergyRegenPerSecond = 15f;
-        private const float HealthRegenPerSecond = 3f;        // only while energy is full
+        private const float EnergyDrainPerSecond = 0.2f;      // full to empty in about 8 minutes
+        private const float HealthRegenPerSecond = 2f;
+        private const float EnergyPerHealthPoint = 0.75f;     // healing 1 HP costs this much energy
+        private const float HealDelayAfterHitSeconds = 3f;    // no healing right after being hit
         private const float HurtInvulnerableSeconds = 0.6f;   // grace period so goblins cannot stack hits
         private const float HurtFlashSeconds = 0.25f;
-        private const float EnergyDeniedFlashSeconds = 0.35f;
 
         private float _energy = MaxEnergy;
-        private float _energyRegenDelayRemaining;
         private float _healthRegenProgress;                   // fractional HP carried between frames
+        private float _healDelayRemaining;
         private float _invulnerableRemaining;
 
         public int Health { get; private set; } = MaxHealth;
-        public int Energy => (int)MathF.Floor(_energy);
+        public int Energy => (int)MathF.Ceiling(_energy);
 
         public bool IsDead => Health <= 0;
-        public bool IsEnergyFull => _energy >= MaxEnergy;
         public bool IsInvulnerable => _invulnerableRemaining > 0f;
 
         public float HealthFraction => Health / (float)MaxHealth;
         public float EnergyFraction => _energy / MaxEnergy;
 
-        // Counts down after the player is hit / tries to swing without energy;
-        // the HUD uses them to flash.
+        // Counts down after the player is hit; the HUD and sprite use it to flash.
         public float HurtFlashRemaining { get; private set; }
-        public float EnergyDeniedFlashRemaining { get; private set; }
-
-        public bool HasEnergyFor(int cost) => _energy >= cost;
-
-        // Spends energy if there is enough; returns false (changing nothing)
-        // otherwise.
-        public bool TrySpendEnergy(int cost)
-        {
-            if (!HasEnergyFor(cost))
-            {
-                return false;
-            }
-
-            _energy -= cost;
-            _energyRegenDelayRemaining = EnergyRegenDelaySeconds;
-            return true;
-        }
-
-        public void FlashEnergyDenied()
-        {
-            EnergyDeniedFlashRemaining = EnergyDeniedFlashSeconds;
-        }
 
         // Returns true if the hit landed (false while dead or in the grace
         // period after the previous hit).
@@ -74,50 +50,63 @@ namespace TileQuest
 
             Health = Math.Max(0, Health - amount);
             _invulnerableRemaining = HurtInvulnerableSeconds;
+            _healDelayRemaining = HealDelayAfterHitSeconds;
             HurtFlashRemaining = HurtFlashSeconds;
             _healthRegenProgress = 0f;
             return true;
+        }
+
+        // Food and dawn refills go through here.
+        public void RestoreEnergy(int amount)
+        {
+            if (amount > 0)
+            {
+                _energy = Math.Min(MaxEnergy, _energy + amount);
+            }
         }
 
         public void RestoreFully()
         {
             Health = MaxHealth;
             _energy = MaxEnergy;
-            _energyRegenDelayRemaining = 0f;
             _healthRegenProgress = 0f;
+            _healDelayRemaining = 0f;
             _invulnerableRemaining = 0f;
             HurtFlashRemaining = 0f;
-            EnergyDeniedFlashRemaining = 0f;
         }
 
         public void Update(float deltaSeconds)
         {
             _invulnerableRemaining = Math.Max(0f, _invulnerableRemaining - deltaSeconds);
             HurtFlashRemaining = Math.Max(0f, HurtFlashRemaining - deltaSeconds);
-            EnergyDeniedFlashRemaining = Math.Max(0f, EnergyDeniedFlashRemaining - deltaSeconds);
+            _healDelayRemaining = Math.Max(0f, _healDelayRemaining - deltaSeconds);
 
-            // Judged before this frame's energy refill, so health never
-            // starts healing on the same frame energy reaches full.
-            bool energyWasFull = IsEnergyFull;
-
-            if (_energyRegenDelayRemaining > 0f)
+            if (IsDead)
             {
-                _energyRegenDelayRemaining = Math.Max(0f, _energyRegenDelayRemaining - deltaSeconds);
-            }
-            else if (_energy < MaxEnergy)
-            {
-                _energy = Math.Min(MaxEnergy, _energy + EnergyRegenPerSecond * deltaSeconds);
+                return;
             }
 
-            if (!IsDead && Health < MaxHealth && energyWasFull)
+            // Hunger: energy slowly runs down on its own.
+            _energy = Math.Max(0f, _energy - EnergyDrainPerSecond * deltaSeconds);
+
+            // Healing needs missing health, energy to burn, and a calm moment
+            // since the last hit.
+            if (Health >= MaxHealth || _energy <= 0f || _healDelayRemaining > 0f)
             {
-                _healthRegenProgress += HealthRegenPerSecond * deltaSeconds;
-                int whole = (int)_healthRegenProgress;
-                if (whole > 0)
-                {
-                    Health = Math.Min(MaxHealth, Health + whole);
-                    _healthRegenProgress -= whole;
-                }
+                _healthRegenProgress = 0f;
+                return;
+            }
+
+            // Never heal more than the remaining energy can pay for.
+            float healed = Math.Min(HealthRegenPerSecond * deltaSeconds, _energy / EnergyPerHealthPoint);
+            _energy -= healed * EnergyPerHealthPoint;
+            _healthRegenProgress += healed;
+
+            int whole = (int)_healthRegenProgress;
+            if (whole > 0)
+            {
+                Health = Math.Min(MaxHealth, Health + whole);
+                _healthRegenProgress -= whole;
             }
         }
     }

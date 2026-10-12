@@ -75,6 +75,8 @@ namespace TileQuest
         private int _nightNumber;                        // 0 until the first night starts
         private int _kills;                              // wave enemies defeated (Milestone 4 score)
         private bool _allNightsSurvived;
+        private readonly PlayerStats _stats = new();
+        private const int PlayerDamageScale = 2;         // wave enemy hearth damage x this = damage to the player per strike
         private bool _pendingNightStart;
         private string _bannerText = string.Empty;
         private float _bannerRemaining;
@@ -612,6 +614,18 @@ namespace TileQuest
                     continue;
                 }
 
+                // An enemy beside the player hits the player first; otherwise
+                // it carries on to the hearth.
+                if (!_stats.IsDead && IsAdjacentToPlayer(enemy.GridPosition))
+                {
+                    enemy.FaceToward(_player.GridPosition.X);
+                    if (enemy.TryStrike(HearthHitSeconds))
+                    {
+                        _stats.TakeDamage(enemy.HearthDamage * PlayerDamageScale);
+                    }
+                    continue;
+                }
+
                 if (_hearth.IsAdjacentTo(enemy.GridPosition))
                 {
                     enemy.FaceToward(_hearth.Position.X + (_hearth.Size - 1) / 2f);
@@ -631,7 +645,13 @@ namespace TileQuest
 
             if (_hearth.IsDestroyed)
             {
-                FailNight();
+                FailNight("THE HEARTH FELL");
+                return;
+            }
+
+            if (_stats.IsDead)
+            {
+                FailNight("YOU FELL", playerFell: true);
                 return;
             }
 
@@ -681,6 +701,7 @@ namespace TileQuest
             _hearthPaths = null;
             _dayCount++;
             _history.ClearForNewDay();   // yesterday's crafting can no longer be undone
+            _stats.RestoreFully();       // rest at dawn: full health and energy (until food exists)
             RestoreResourceNodesForNewDay();
 
             if (_nightNumber >= MaxNights)
@@ -699,7 +720,7 @@ namespace TileQuest
         // Placeholder until Milestone 4 adds the Defeat ending: the night is
         // lost, the wave is cleared, the hearth is rebuilt, and the same night
         // can be tried again.
-        private void FailNight()
+        private void FailNight(string banner, bool playerFell = false)
         {
             _gameState = GameState.Day;
             _hearthPaths = null;
@@ -707,9 +728,17 @@ namespace TileQuest
             _pendingWaveSpawn = null;
             _enemies[WorldMapType.Village].RemoveAll(enemy => enemy.IsWaveEnemy);
             _hearth.RestoreFully();
+            _stats.RestoreFully();
+            if (playerFell && _map.MapType == WorldMapType.Village)
+            {
+                _player.Teleport(_map.SpawnPoint);
+                _camera.SnapTo(_player.PixelPosition);
+            }
             _nightNumber--;
-            ShowBanner("THE HEARTH FELL");
-            Console.WriteLine("[Night] The hearth was destroyed. The night will be retried.");
+            ShowBanner(banner);
+            Console.WriteLine(playerFell
+                ? "[Night] The player fell. The night will be retried."
+                : "[Night] The hearth was destroyed. The night will be retried.");
         }
 
         private void RestoreResourceNodesForNewDay()
@@ -726,6 +755,12 @@ namespace TileQuest
             {
                 PrepareMapVisuals();
             }
+        }
+
+        private bool IsAdjacentToPlayer(Point tile)
+        {
+            Point player = _player.GridPosition;
+            return Math.Abs(player.X - tile.X) + Math.Abs(player.Y - tile.Y) == 1;
         }
 
         private int FoesRemaining()
@@ -1095,6 +1130,7 @@ namespace TileQuest
                 if (!interacted)
                 {
                     _player.Update(gameTime, _map, keyboard, attackPressed, IsEnemyAt);
+                    _stats.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
                     UpdateEnemies(gameTime);
                     if (_gameState == GameState.Night)
                     {
@@ -1552,34 +1588,43 @@ namespace TileQuest
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             DrawHudPanel(panel);
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "HEALTH", new Point(x + 12, y + 7), 2, Color.Wheat);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, $"HEALTH {_stats.Health}", new Point(x + 12, y + 7), 2, Color.Wheat);
             var healthMeter = new Rectangle(x + 12, y + 22, 124, 22);
             _spriteBatch.Draw(_pixelTexture, healthMeter, new Color(45, 28, 24));
             _spriteBatch.Draw(
                 _pixelTexture,
                 new Rectangle(healthMeter.X + 3, healthMeter.Y + 3, healthMeter.Width - 6, healthMeter.Height - 6),
                 new Color(20, 16, 17));
-            _spriteBatch.Draw(
-                _healthBarTexture,
-                new Rectangle(healthMeter.X + 3, healthMeter.Y + 3, healthMeter.Width - 6, healthMeter.Height - 6),
-                BarFillSource,
-                Color.White);
-            DrawHudBorder(healthMeter, new Color(156, 119, 69));
+            DrawBarFill(_healthBarTexture, healthMeter, _stats.HealthFraction);
+            DrawHudBorder(healthMeter, _stats.HurtFlashRemaining > 0f ? Color.White : new Color(156, 119, 69));
 
-            BitmapFont.Draw(_spriteBatch, _pixelTexture, "ENERGY", new Point(x + 12, y + 52), 2, Color.Wheat);
+            BitmapFont.Draw(_spriteBatch, _pixelTexture, $"ENERGY {_stats.Energy}", new Point(x + 12, y + 52), 2, Color.Wheat);
             var energyMeter = new Rectangle(x + 12, y + 67, 124, 22);
             _spriteBatch.Draw(_pixelTexture, energyMeter, new Color(28, 32, 43));
             _spriteBatch.Draw(
                 _pixelTexture,
                 new Rectangle(energyMeter.X + 3, energyMeter.Y + 3, energyMeter.Width - 6, energyMeter.Height - 6),
                 new Color(16, 19, 26));
-            _spriteBatch.Draw(
-                _energyBarTexture,
-                new Rectangle(energyMeter.X + 3, energyMeter.Y + 3, energyMeter.Width - 6, energyMeter.Height - 6),
-                BarFillSource,
-                Color.White);
+            DrawBarFill(_energyBarTexture, energyMeter, _stats.EnergyFraction);
             DrawHudBorder(energyMeter, new Color(156, 119, 69));
             _spriteBatch.End();
+        }
+
+        // Fills the inside of a meter from the left, in proportion to fraction (0 to 1).
+        private void DrawBarFill(Texture2D texture, Rectangle meter, float fraction)
+        {
+            int innerWidth = meter.Width - 6;
+            int filled = (int)Math.Round(innerWidth * Math.Clamp(fraction, 0f, 1f));
+            if (filled <= 0)
+            {
+                return;
+            }
+
+            _spriteBatch.Draw(
+                texture,
+                new Rectangle(meter.X + 3, meter.Y + 3, filled, meter.Height - 6),
+                BarFillSource,
+                Color.White);
         }
 
         private void DrawHudPanel(Rectangle bounds)
@@ -2588,7 +2633,8 @@ namespace TileQuest
                 ? SpriteEffects.FlipHorizontally
                 : SpriteEffects.None;
 
-            _spriteBatch.Draw(_playerTexture, destination, source, Color.White, 0f, Vector2.Zero, effects, 0f);
+            Color tint = _stats.HurtFlashRemaining > 0f ? new Color(255, 120, 120) : Color.White;
+            _spriteBatch.Draw(_playerTexture, destination, source, tint, 0f, Vector2.Zero, effects, 0f);
         }
     }
 }

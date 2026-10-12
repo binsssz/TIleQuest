@@ -11,12 +11,13 @@ TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms 
 - **Dungeon:** A 36 × 28 collision grid (`DungeonCollisionLayout` in `CollisionMapLayouts.cs`) displayed over `Assets/dungeon.png`, with a dark screen-space vignette. Its exit returns to the forest entrance.
 - **Movement:** Four-directional tile-locked movement with smooth slides, collision, animation, depth sorting, and camera follow.
 - **Travel:** Stand beside the village wizard and press `E` to request forest travel. Stepping on a map exit or entrance requests travel. Confirm with `Y` or `Enter`; cancel with `N` or `Escape`. Prompts appear at the bottom center of the screen.
-- **Harvesting and inventory:** Press `Space` or `J` to swing at resource nodes and enemies. Harvested resources, enemy loot, and crafted weapons are stored in the linked-list inventory and displayed in the inventory HUD. Press `I` to open the full inventory menu, or `E` when no nearby interaction is available. Use `W`/`S` or the arrow keys to select an item, `Enter` to equip a crafted weapon, `D` to discard one unit, and `Esc` to close. Food use is deferred until the food trader and player health are implemented.
-- **Combat:** Swings damage and knock back stationary training enemies near the maps' spawn points. Night goblins and skeletons march toward and attack the village hearth; the dungeon is packed with stationary skeleton targets; enemies do not attack the player.
+- **Harvesting and inventory:** Press `Space` or `J` to swing at resource nodes and enemies. Harvested resources, enemy loot, and crafted weapons are stored in the linked-list inventory and displayed in the inventory HUD. Press `I` to open the full inventory menu, or `E` when no nearby interaction is available. Use `W`/`S` or the arrow keys to select an item, `Enter` to equip a crafted weapon, `D` to discard one unit, and `Esc` to close. Food use is deferred until food items exist (they would refill energy).
+- **Combat:** Swings damage and knock back stationary training enemies near the maps' spawn points. Night goblins and skeletons march toward and attack the village hearth, or the player if they end up beside them; the dungeon is packed with stationary skeleton targets that never attack.
 - **Night defense:** Stand beside the village hearth and press `E`, then confirm with `Y` or `Enter` to start the next wave. A FIFO queue releases a mix of goblins and skeletons over time (skeletons are a growing share of each night, with new variants joining on later nights); they use a BFS distance field to find the hearth. The hearth has 100 HP that persists between nights. Clear the wave to advance the day and regrow resource nodes. If the hearth is destroyed, that night is cleared for a retry. The HUD shows the day/night, remaining foes, and hearth HP.
 - **Trader and crafting:** In the day, stand beside the trader (the tavern woman in the forge area) and press `E` to open her menu. `W`/`S` select a recipe, `E` crafts it (spending materials from the inventory), and `Esc` closes. Weapon sprites appear in the recipe list and inventory; crafted weapons add swing damage and the strongest weapon is shown above the inventory.
 - **Undo:** Press `U` (in the day, with or without the trader menu open) to undo the most recent craft: the gear is removed and its materials refunded. Undo history is cleared at dawn.
-- **HUD:** The inventory and hearth status are functional. The player health and energy bars are visual-only; player health and energy mechanics are not implemented.
+- **Player health and energy:** The lower-left bars are live (`PlayerStats.cs`). Energy is a hunger-style bar: it drains slowly over time, is not spent on swings, and fuels healing. While health is missing and energy remains, health regenerates (a few seconds after the last hit) and burns energy; at 0 energy there is no healing. Dawn restores both to full until food exists. Night wave enemies standing next to the player hit the player instead of the hearth (their hearth damage ×2); at 0 health the night is lost and retried from the village spawn.
+- **HUD:** The inventory, hearth status, and player health/energy bars are functional.
 - **Debugging:** Press `F3` to toggle hitbox overlays.
 - **Startup checks:** `TileGraph` checks map connectivity; `DsaDemo` runs self-checks for the standalone DSA modules.
 
@@ -33,9 +34,9 @@ TileQuest is a 2D, grid-based exploration game and Data Structures & Algorithms 
 
 ## Not Yet Implemented
 
-- Functional player health and food-based healing (planned for a separate food trader).
+- Food items that refill energy (`PlayerStats.RestoreEnergy` is ready for them).
 - Dungeon puzzles or other player-facing binary-search gameplay.
-- Functional player health/energy, enemies that attack the player, and boss encounters.
+- Enemies that attack the player outside the night wave, and boss encounters.
 - Story endings and high scores (nights 1-5 are playable, but there is no victory/defeat screen yet).
 
 ## Building and Running
