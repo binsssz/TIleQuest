@@ -60,6 +60,7 @@ namespace TileQuest
         public static QuestLog BuildDefaultChain()
         {
             var log = new QuestLog(initializeDefaults: false);
+            log.AddLast(new QuestNode("Talk to the wizard", QuestKind.TalkToWizard, true, 1));
             log.AddLast(new QuestNode("Gather 10 Wood", QuestKind.GatherResource, "Wood", 10));
             log.AddLast(new QuestNode("Gather 5 Stone", QuestKind.GatherResource, "Stone", 5));
             log.AddLast(new QuestNode(
@@ -242,6 +243,17 @@ namespace TileQuest
 
             _nightsSurvived = Math.Max(_nightsSurvived, nightNumber);
             CatchUpCurrentNight();
+        }
+
+        public void OnWizardTalked()
+        {
+            if (Current?.Kind != QuestKind.TalkToWizard)
+            {
+                return;
+            }
+
+            Current.SetProgress(Current.RequiredAmount);
+            CompleteIfReady();
         }
 
         public void RestoreProgress(int index, int progress)

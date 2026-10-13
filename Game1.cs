@@ -113,6 +113,10 @@ namespace TileQuest
         private Texture2D _enemyHandsTexture = null!;
         private Texture2D _enemyRunTexture = null!;
         private Texture2D _skeletonWeaponTexture = null!;
+        private readonly Dictionary<Texture2D, Color[]> _enemySpritePixels = new();
+        private readonly Dictionary<(Texture2D Texture, Rectangle Source), Texture2D> _enemyOutlineTextures = new();
+        private readonly Dictionary<Texture2D, Color[]> _objectSpritePixels = new();
+        private readonly Dictionary<(Texture2D Texture, Rectangle Source), Texture2D> _objectOutlineTextures = new();
 
         // Skeleton sprite sets, indexed by (int)SkeletonVariant. They share the
         // orc's layout: Idle is 4 frames of 32x32, Run is 6 frames of 64x64.
@@ -128,6 +132,24 @@ namespace TileQuest
         private bool _questPanelOpen;
         private bool _bonusQuestInserted;
         private bool _hasTalkedToWizard;
+        private bool _wizardIntroOpen;
+        private float _wizardIntroElapsed;
+        private int _wizardIntroVisibleCharacters;
+
+        private const float WizardIntroCharactersPerSecond = 40f;
+        private static readonly string[] WizardIntroLines =
+        {
+            "GREETINGS, HERO!",
+            "THE VILLAGE NEEDS YOU. SURVIVE FIVE NIGHTS",
+            "AND KEEP THE HEARTH ALIVE.",
+            "BY DAY, GATHER RESOURCES IN THE FOREST.",
+            "STRIKE STUMPS FOR WOOD AND BOULDERS FOR STONE.",
+            "VISIT THE TRADER TO CRAFT YOUR FIRST WEAPON.",
+            "PRESS Q TO CHECK YOUR QUEST LOG.",
+            "WHEN READY, STAND BY THE HEARTH AND PRESS E.",
+        };
+        private static readonly int WizardIntroCharacterCount =
+            WizardIntroLines.Sum(line => line.Length);
 
         private enum InteractableKind
         {
@@ -1076,6 +1098,9 @@ namespace TileQuest
             _questPanelOpen = false;
             _bonusQuestInserted = false;
             _hasTalkedToWizard = false;
+            _wizardIntroOpen = false;
+            _wizardIntroElapsed = 0f;
+            _wizardIntroVisibleCharacters = 0;
             _endingSelection = 0;
             _endingInputDelay = 0f;
             _menuMessage = string.Empty;
@@ -1545,6 +1570,9 @@ namespace TileQuest
 
             _pendingTravel = null;
             _pendingNightStart = false;
+            _wizardIntroOpen = false;
+            _wizardIntroElapsed = 0f;
+            _wizardIntroVisibleCharacters = 0;
             _openChest = null;
             _traderOpen = false;
             _foodShopOpen = false;
@@ -1697,6 +1725,46 @@ namespace TileQuest
             };
             BitmapFont.Draw(_spriteBatch, _pixelTexture, $"ENTER THE {destination}?", new Point(x + 18, y + 12), 2, Color.White);
             BitmapFont.Draw(_spriteBatch, _pixelTexture, "Y=YES N=NO", new Point(x + 18, y + 48), 2, Color.White);
+            _spriteBatch.End();
+        }
+
+        private void DrawWizardIntro(Viewport viewport)
+        {
+            const int panelWidth = 780;
+            const int panelHeight = 300;
+            var panel = new Rectangle(
+                (viewport.Width - panelWidth) / 2,
+                (viewport.Height - panelHeight) / 2,
+                panelWidth,
+                panelHeight);
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, viewport.Bounds, new Color(0, 0, 0, 190));
+            DrawHudPanel(panel);
+
+            int remainingCharacters = _wizardIntroVisibleCharacters;
+            for (int i = 0; i < WizardIntroLines.Length; i++)
+            {
+                string line = WizardIntroLines[i];
+                int visibleLength = Math.Min(line.Length, remainingCharacters);
+                if (visibleLength > 0)
+                {
+                    BitmapFont.Draw(
+                        _spriteBatch,
+                        _pixelTexture,
+                        line[..visibleLength],
+                        new Point(panel.X + 24, panel.Y + 20 + i * 30),
+                        i == 0 ? 3 : 2,
+                        i == 0 ? Color.Gold : Color.White);
+                    remainingCharacters -= visibleLength;
+                }
+            }
+
+            string hint = _wizardIntroVisibleCharacters < WizardIntroCharacterCount
+                ? "PRESS ENTER OR E TO SKIP"
+                : "PRESS ENTER OR E TO CONTINUE";
+            BitmapFont.Draw(
+                _spriteBatch, _pixelTexture, hint,
+                new Point(panel.X + 24, panel.Bottom - 28), 1, Color.Wheat);
             _spriteBatch.End();
         }
 
@@ -1922,7 +1990,32 @@ namespace TileQuest
                 return;
             }
 
-            if (_pendingTravel is MapTravel travel)
+            if (_wizardIntroOpen)
+            {
+                if (_wizardIntroVisibleCharacters < WizardIntroCharacterCount)
+                {
+                    _wizardIntroElapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                    _wizardIntroVisibleCharacters = Math.Min(
+                        WizardIntroCharacterCount,
+                        (int)(_wizardIntroElapsed * WizardIntroCharactersPerSecond));
+                }
+
+                if (WasPressed(keyboard, Keys.Enter) || WasPressed(keyboard, Keys.E))
+                {
+                    if (_wizardIntroVisibleCharacters < WizardIntroCharacterCount)
+                    {
+                        _wizardIntroVisibleCharacters = WizardIntroCharacterCount;
+                    }
+                    else
+                    {
+                        _wizardIntroOpen = false;
+                        _pendingTravel = new MapTravel(
+                            WorldMapType.Forest,
+                            _maps[WorldMapType.Forest].SpawnPoint);
+                    }
+                }
+            }
+            else if (_pendingTravel is MapTravel travel)
             {
                 if (WasPressed(keyboard, Keys.Y) || WasPressed(keyboard, Keys.Enter))
                 {
@@ -2035,6 +2128,7 @@ namespace TileQuest
                 DrawVillageObjectLayer(_villageObjectsGroundTexture);
                 DrawHearthPlatform(_spriteBatch);
                 DrawVillageActors(gameTime);
+                DrawEnemiesBehindHearth();
                 DrawVillageObjectLayer(_villageObjectsMainTexture);
                 DrawTrader(gameTime);
                 DrawFoodVendor(gameTime);
@@ -2065,6 +2159,7 @@ namespace TileQuest
                 if (_map.MapType == WorldMapType.Forest && !ForestLayout.UseGeneratedVisuals)
                 {
                     DrawForestSpriteLayer(ForestLayout.SpriteLayer.OverPlayer);
+                    DrawForestObjectOutlines();
                 }
             }
 
@@ -2125,6 +2220,11 @@ namespace TileQuest
             if (_pendingTravel is MapTravel travel)
             {
                 DrawTravelPrompt(travel);
+            }
+
+            if (_wizardIntroOpen)
+            {
+                DrawWizardIntro(GraphicsDevice.Viewport);
             }
 
             if (_pendingNightStart)
@@ -2889,10 +2989,20 @@ namespace TileQuest
                     }
                     break;
                 case InteractableKind.Wizard:
-                    _hasTalkedToWizard = true;
-                    _pendingTravel = new MapTravel(
-                        WorldMapType.Forest,
-                        _maps[WorldMapType.Forest].SpawnPoint);
+                    if (!_hasTalkedToWizard)
+                    {
+                        _hasTalkedToWizard = true;
+                        _questLog.OnWizardTalked();
+                        _wizardIntroOpen = true;
+                        _wizardIntroElapsed = 0f;
+                        _wizardIntroVisibleCharacters = 0;
+                    }
+                    else
+                    {
+                        _pendingTravel = new MapTravel(
+                            WorldMapType.Forest,
+                            _maps[WorldMapType.Forest].SpawnPoint);
+                    }
                     break;
                 default:
                     throw new InvalidOperationException("Unknown interactable kind.");
@@ -3553,6 +3663,275 @@ namespace TileQuest
             {
                 actor.Draw();
             }
+        }
+
+        private void DrawEnemiesBehindHearth()
+        {
+            int hearthBaseY = (_hearth.Position.Y + _hearth.Size) * TileSize;
+            Rectangle statueBounds = HearthStatueDestination();
+
+            foreach (Enemy enemy in _enemies[WorldMapType.Village])
+            {
+                if (!enemy.IsAlive || (int)enemy.PixelPosition.Y + TileSize > hearthBaseY)
+                {
+                    continue;
+                }
+
+                bool skeleton = enemy.Kind == EnemyKind.Skeleton;
+                bool running = enemy.IsRunning && !enemy.IsAttacking;
+                Texture2D texture;
+                Rectangle source;
+                Rectangle body;
+
+                if (running)
+                {
+                    texture = skeleton ? _skeletonRunTextures[(int)enemy.Variant] : _enemyRunTexture;
+                    int frame = (int)(enemy.AnimationTime * enemy.MarchTilesPerSecond * EnemyRunFramesPerTile)
+                                % EnemyRunFrameCount;
+                    source = new Rectangle(frame * EnemyRunCellSize, 0, EnemyRunCellSize, EnemyRunCellSize);
+                    int size = (int)Math.Round(EnemyRunCellSize * TileSize / (float)EnemySpriteHeight);
+                    int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2;
+                    int y = (int)enemy.PixelPosition.Y + TileSize - size;
+                    body = new Rectangle(x, y, size, size);
+                }
+                else
+                {
+                    texture = skeleton ? _skeletonIdleTextures[(int)enemy.Variant] : _enemyTexture;
+                    int frame = (int)(enemy.AnimationTime * EnemyFramesPerSecond) % EnemyFrameCount;
+                    source = new Rectangle(frame * EnemyCellSize, 0, EnemyCellSize, EnemyCellSize);
+                    int size = (int)Math.Round(EnemyCellSize * TileSize / (float)EnemySpriteHeight);
+                    GetEnemyAttackPose(enemy, out Vector2 attackOffset, out _, out _);
+                    int x = (int)enemy.PixelPosition.X + (TileSize - size) / 2 + (int)Math.Round(attackOffset.X);
+                    int y = (int)enemy.PixelPosition.Y + TileSize - size + (int)Math.Round(attackOffset.Y);
+                    body = new Rectangle(x, y, size, size);
+                }
+
+                DrawEnemyOutline(texture, source, body, statueBounds, enemy.FacingLeft, enemy.DeathFade);
+            }
+        }
+
+        private void DrawEnemyOutline(
+            Texture2D texture, Rectangle source, Rectangle body, Rectangle clipBounds, bool flip, float opacity)
+        {
+            Texture2D outline = GetEnemyOutlineTexture(texture, source);
+            int padding = Math.Max(1, (int)Math.Round(body.Width / (float)source.Width));
+            var destination = new Rectangle(
+                body.X - padding,
+                body.Y - padding,
+                body.Width + padding * 2,
+                body.Height + padding * 2);
+            Rectangle visible = Rectangle.Intersect(destination, clipBounds);
+            if (visible.Width <= 0 || visible.Height <= 0)
+            {
+                return;
+            }
+
+            int sourceLeft = (visible.Left - destination.Left) * outline.Width / destination.Width;
+            int sourceRight = ((visible.Right - destination.Left) * outline.Width + destination.Width - 1) / destination.Width;
+            int sourceTop = (visible.Top - destination.Top) * outline.Height / destination.Height;
+            int sourceBottom = ((visible.Bottom - destination.Top) * outline.Height + destination.Height - 1) / destination.Height;
+            if (flip)
+            {
+                int flippedLeft = outline.Width - sourceRight;
+                sourceRight = outline.Width - sourceLeft;
+                sourceLeft = flippedLeft;
+            }
+
+            var outlineSource = new Rectangle(
+                sourceLeft,
+                sourceTop,
+                sourceRight - sourceLeft,
+                sourceBottom - sourceTop);
+            _spriteBatch.Draw(
+                outline,
+                visible,
+                outlineSource,
+                Color.Gold * opacity,
+                0f,
+                Vector2.Zero,
+                flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None,
+                0f);
+        }
+
+        private void DrawForestObjectOutlines()
+        {
+            Rectangle clipBounds = new Rectangle(0, 0, _map.Width * TileSize, _map.Height * TileSize);
+            foreach (DrawTree tree in _trees)
+            {
+                DrawSpriteOutline(tree.Texture, tree.Source, tree.Destination, clipBounds, Color.LightYellow * 0.55f);
+            }
+
+            foreach (DrawRock rock in _rocks)
+            {
+                DrawSpriteOutline(rock.Texture, rock.Source, rock.Destination, clipBounds, Color.LightYellow * 0.55f);
+            }
+
+            foreach (DrawProp prop in _props)
+            {
+                DrawSpriteOutline(prop.Texture, prop.Source, prop.Destination, clipBounds, Color.LightYellow * 0.55f);
+            }
+        }
+
+        private void DrawSpriteOutline(
+            Texture2D texture,
+            Rectangle source,
+            Rectangle destination,
+            Rectangle clipBounds,
+            Color outlineColor)
+        {
+            Texture2D outline = GetObjectOutlineTexture(texture, source);
+            int padding = Math.Max(1, (int)Math.Round(destination.Width / (float)source.Width));
+            var expanded = new Rectangle(
+                destination.X - padding,
+                destination.Y - padding,
+                destination.Width + padding * 2,
+                destination.Height + padding * 2);
+            Rectangle visible = Rectangle.Intersect(expanded, clipBounds);
+            if (visible.Width <= 0 || visible.Height <= 0)
+            {
+                return;
+            }
+
+            int sourceLeft = (visible.Left - expanded.Left) * outline.Width / expanded.Width;
+            int sourceRight = ((visible.Right - expanded.Left) * outline.Width + expanded.Width - 1) / expanded.Width;
+            int sourceTop = (visible.Top - expanded.Top) * outline.Height / expanded.Height;
+            int sourceBottom = ((visible.Bottom - expanded.Top) * outline.Height + expanded.Height - 1) / expanded.Height;
+            var outlineSource = new Rectangle(
+                sourceLeft,
+                sourceTop,
+                sourceRight - sourceLeft,
+                sourceBottom - sourceTop);
+            _spriteBatch.Draw(
+                outline,
+                visible,
+                outlineSource,
+                outlineColor,
+                0f,
+                Vector2.Zero,
+                SpriteEffects.None,
+                0f);
+        }
+
+        private Texture2D GetObjectOutlineTexture(Texture2D texture, Rectangle source)
+        {
+            var key = (texture, source);
+            if (_objectOutlineTextures.TryGetValue(key, out Texture2D? outline))
+            {
+                return outline;
+            }
+
+            if (!_objectSpritePixels.TryGetValue(texture, out Color[]? pixels))
+            {
+                pixels = new Color[texture.Width * texture.Height];
+                texture.GetData(pixels);
+                _objectSpritePixels.Add(texture, pixels);
+            }
+
+            int width = source.Width;
+            int height = source.Height;
+            var outlinePixels = new Color[(width + 2) * (height + 2)];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int textureIndex = (source.Y + y) * texture.Width + source.X + x;
+                    if (pixels[textureIndex].A == 0)
+                    {
+                        continue;
+                    }
+
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0)
+                            {
+                                continue;
+                            }
+
+                            int neighborX = x + dx;
+                            int neighborY = y + dy;
+                            if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height)
+                            {
+                                outlinePixels[(neighborY + 1) * (width + 2) + neighborX + 1] = Color.White;
+                                continue;
+                            }
+
+                            int neighborIndex = (source.Y + neighborY) * texture.Width + source.X + neighborX;
+                            if (pixels[neighborIndex].A == 0)
+                            {
+                                outlinePixels[(neighborY + 1) * (width + 2) + neighborX + 1] = Color.White;
+                            }
+                        }
+                    }
+                }
+            }
+
+            outline = new Texture2D(GraphicsDevice, width + 2, height + 2);
+            outline.SetData(outlinePixels);
+            _objectOutlineTextures.Add(key, outline);
+            return outline;
+        }
+
+        private Texture2D GetEnemyOutlineTexture(Texture2D texture, Rectangle source)
+        {
+            var key = (texture, source);
+            if (_enemyOutlineTextures.TryGetValue(key, out Texture2D? outline))
+            {
+                return outline;
+            }
+
+            if (!_enemySpritePixels.TryGetValue(texture, out Color[]? pixels))
+            {
+                pixels = new Color[texture.Width * texture.Height];
+                texture.GetData(pixels);
+                _enemySpritePixels.Add(texture, pixels);
+            }
+
+            int width = source.Width;
+            int height = source.Height;
+            var outlinePixels = new Color[(width + 2) * (height + 2)];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int textureIndex = (source.Y + y) * texture.Width + source.X + x;
+                    if (pixels[textureIndex].A == 0)
+                    {
+                        continue;
+                    }
+
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0)
+                            {
+                                continue;
+                            }
+
+                            int neighborX = x + dx;
+                            int neighborY = y + dy;
+                            if (neighborX < 0 || neighborX >= width || neighborY < 0 || neighborY >= height)
+                            {
+                                outlinePixels[(neighborY + 1) * (width + 2) + neighborX + 1] = Color.White;
+                                continue;
+                            }
+
+                            int neighborIndex = (source.Y + neighborY) * texture.Width + source.X + neighborX;
+                            if (pixels[neighborIndex].A == 0)
+                            {
+                                outlinePixels[(neighborY + 1) * (width + 2) + neighborX + 1] = Color.White;
+                            }
+                        }
+                    }
+                }
+            }
+
+            outline = new Texture2D(GraphicsDevice, width + 2, height + 2);
+            outline.SetData(outlinePixels);
+            _enemyOutlineTextures.Add(key, outline);
+            return outline;
         }
 
         private void DrawTiles()
@@ -4282,7 +4661,21 @@ namespace TileQuest
         {
             IReadOnlyList<Point> tiles = _player.GetSwingTiles();
             float sweepPosition = _player.AttackProgress * tiles.Count;
-            Color swingColor = Color.Lerp(Color.White, Color.Gold, 0.4f);
+            CraftingRecipe? weapon = EquippedWeapon();
+            Color? sparkleTint = weapon?.Name switch
+            {
+                "Gold Blade" => Color.Yellow,
+                "Iron Sword" => new Color(80, 180, 255),
+                _ => null,
+            };
+            Color swingColor = weapon?.Name switch
+            {
+                "Wood Sword" => new Color(255, 205, 130),
+                "Stone Sword" => new Color(190, 205, 220),
+                "Iron Sword" => new Color(180, 230, 255),
+                "Gold Blade" => new Color(255, 215, 60),
+                _ => Color.White,
+            };
 
             for (int i = 0; i < tiles.Count; i++)
             {
@@ -4294,6 +4687,24 @@ namespace TileQuest
 
                 var box = new Rectangle(tiles[i].X * TileSize, tiles[i].Y * TileSize, TileSize, TileSize);
                 _spriteBatch.Draw(_pixelTexture, box, swingColor * (0.55f * intensity));
+
+                if (sparkleTint is Color sparkleBaseColor)
+                {
+                    float pulse = 0.65f + 0.35f * (float)Math.Sin(_player.AttackProgress * MathHelper.TwoPi * 2f + i);
+                    Color sparkleColor = sparkleBaseColor * (intensity * pulse);
+                    int centerX = box.X + TileSize / 2;
+                    int centerY = box.Y + TileSize / 2;
+                    int sparkleLength = Math.Max(4, TileSize / 3);
+
+                    _spriteBatch.Draw(
+                        _pixelTexture,
+                        new Rectangle(centerX - 1, centerY - sparkleLength / 2, 2, sparkleLength),
+                        sparkleColor);
+                    _spriteBatch.Draw(
+                        _pixelTexture,
+                        new Rectangle(centerX - sparkleLength / 2, centerY - 1, sparkleLength, 2),
+                        sparkleColor);
+                }
             }
         }
 

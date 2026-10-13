@@ -4,6 +4,7 @@ namespace TileQuest
 {
     public enum QuestKind
     {
+        TalkToWizard,
         GatherResource,
         CraftItem,
         DefeatEnemies,
@@ -34,6 +35,7 @@ namespace TileQuest
 
             bool validTarget = kind switch
             {
+                QuestKind.TalkToWizard => target is bool,
                 QuestKind.GatherResource or QuestKind.CraftItem => target is string,
                 QuestKind.DefeatEnemies or QuestKind.SurviveNight => target is int,
                 _ => false,

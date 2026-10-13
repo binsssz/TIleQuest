@@ -27,6 +27,10 @@ namespace TileQuest
         private readonly Point _tile;
         private readonly int _tileSize;
 
+        public Texture2D Texture => _texture;
+        public Rectangle Source => _source;
+        public Rectangle Destination => GetDestination(_tile, _source, _tileSize);
+
         private DrawProp(Texture2D texture, Rectangle source, Point tile, int tileSize)
         {
             _texture = texture;
@@ -49,13 +53,18 @@ namespace TileQuest
             return props.ToArray();
         }
 
+        public static Rectangle GetDestination(Point tile, Rectangle source, int tileSize)
+        {
+            float scale = tileSize / (float)TileSprites.GridSize;
+            int width = (int)Math.Round(source.Width * scale);
+            int height = (int)Math.Round(source.Height * scale);
+            int x = tile.X * tileSize + tileSize / 2 - width / 2;
+            return new Rectangle(x, (tile.Y + 1) * tileSize - height, width, height);
+        }
+
         public void Draw(SpriteBatch spriteBatch, GameTime gameTime)
         {
-            float scale = _tileSize / (float)TileSprites.GridSize;
-            int width = (int)Math.Round(_source.Width * scale);
-            int height = (int)Math.Round(_source.Height * scale);
-            int x = _tile.X * _tileSize + _tileSize / 2 - width / 2;
-            var destination = new Rectangle(x, BaseY - height, width, height);
+            Rectangle destination = GetDestination(_tile, _source, _tileSize);
             spriteBatch.Draw(_texture, destination, _source, Color.White);
         }
     }

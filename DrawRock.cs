@@ -16,6 +16,10 @@ namespace TileQuest
         private readonly Point _tile;
         private readonly int _tileSize;
 
+        public Texture2D Texture => _texture;
+        public Rectangle Source => _source;
+        public Rectangle Destination => GetBounds(_tile, _tileSize);
+
         private DrawRock(Texture2D texture, Rectangle source, Point tile, int tileSize)
         {
             _texture = texture;

@@ -41,6 +41,22 @@ namespace TileQuest
         private readonly Point _anchorTile;
         private readonly int _tileSize;
 
+        public Texture2D Texture => _texture;
+        public Rectangle Source => _source;
+        public Rectangle Destination
+        {
+            get
+            {
+                float scale = _tileSize / (float)SourceTileSize * NormalizeScale(_type) * ScaleFor(_anchorTile);
+                int width = (int)Math.Round(_source.Width * scale);
+                int height = (int)Math.Round(_source.Height * scale);
+                int anchorX = _anchorTile.X * _tileSize + _tileSize / 2;
+                int anchorY = (_anchorTile.Y + 1) * _tileSize;
+                return new Rectangle(anchorX - width / 2, anchorY - height, width, height);
+            }
+        }
+        public Point AnchorTile => _anchorTile;
+
         private DrawTree(Texture2D texture, Rectangle source, TileType type, Point anchorTile, int tileSize)
         {
             _texture = texture;
