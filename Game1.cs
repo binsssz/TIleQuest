@@ -184,14 +184,20 @@ namespace TileQuest
         private const float EnemyRunFramesPerTile = 4.8f;
         private static readonly Rectangle SkeletonWeaponSource = new(64, 0, 16, 48);
         private static readonly Point SkeletonIdleWeaponHand = new(23, 19);
-        private static readonly Point SkeletonRunWeaponHand = new(49, 39);
+        private static readonly Point SkeletonRunWeaponHand = new(48, 38);
+        private static readonly Point SkeletonIdleBackHandCenter = new(9, 19);
+        private static readonly Point SkeletonIdleFrontHandCenter = new(24, 19);
+        private static readonly Point SkeletonRunBackHandCenter = new(18, 38);
+        private static readonly Point SkeletonRunFrontHandCenter = new(48, 38);
         private const float SkeletonWeaponScale = 0.65f;
 
         // The goblin sprite has no arms, so its hands are separate sprites drawn
         // on top. Hands.png is 2 columns (left hand, right hand) of 16x16 cells;
-        // rows 4 and 5 are the green goblin hands (try 5 for the other pose).
+        // rows 4 and 5 are the green goblin hands (try 5 for the other pose),
+        // while row 2 is a compact closed fist used for skeletons.
         private const int HandCellSize = 16;
         private const int GoblinHandRow = 4;
+        private const int SkeletonHandRow = 2;
         // Where each hand's centre sits in the 32x32 idle frame, in source pixels
         // (x to the right, y down). Nudge these two to move the hands.
         private static readonly Point GoblinBackHandCenter = new(7, 19);
@@ -4034,12 +4040,13 @@ namespace TileQuest
         // Draws one hand cell so its centre lands on `center` (source pixels in the
         // body frame), using the same scale and tint as the body. When the body
         // is flipped to face left the hand's centre and sprite are mirrored too.
-        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint, bool flip, int offsetY = 0)
+        private void DrawEnemyHand(int column, Point center, int frame, int bodyX, int bodyY, float scale, Color tint, bool flip, int offsetY = 0, int handRow = GoblinHandRow, int cellSize = EnemyCellSize, bool applyIdleBob = true)
         {
-            var source = new Rectangle(column * HandCellSize, GoblinHandRow * HandCellSize, HandCellSize, HandCellSize);
-            int centerX = flip ? EnemyCellSize - center.X : center.X;
+            var source = new Rectangle(column * HandCellSize, handRow * HandCellSize, HandCellSize, HandCellSize);
+            int centerX = flip ? cellSize - center.X : center.X;
             int handX = bodyX + (int)Math.Round((centerX - HandCellSize / 2) * scale);
-            int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + GoblinBodyBobY[frame]) * scale) + offsetY;
+            int bobY = applyIdleBob ? GoblinBodyBobY[frame % GoblinBodyBobY.Length] : 0;
+            int handY = bodyY + (int)Math.Round((center.Y - HandCellSize / 2 + bobY) * scale) + offsetY;
             int handSize = (int)Math.Round(HandCellSize * scale);
             SpriteEffects effects = flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
             _spriteBatch.Draw(
@@ -4209,6 +4216,8 @@ namespace TileQuest
 
                 if (skeleton)
                 {
+                    DrawEnemyHand(0, SkeletonRunBackHandCenter, runFrame, runX, runY, scale, tint, flip, 0, SkeletonHandRow, EnemyRunCellSize, false);
+                    DrawEnemyHand(1, SkeletonRunFrontHandCenter, runFrame, runX, runY, scale, tint, flip, 0, SkeletonHandRow, EnemyRunCellSize, false);
                     DrawSkeletonWeapon(
                         SkeletonRunWeaponHand, EnemyRunCellSize, runX, runY, scale, tint, flip);
                 }
@@ -4227,6 +4236,10 @@ namespace TileQuest
                 {
                     DrawEnemyHand(0, GoblinBackHandCenter, frame, x, y, scale, tint, flip, handLift);
                 }
+                else
+                {
+                    DrawEnemyHand(0, SkeletonIdleBackHandCenter, frame, x, y, scale, tint, flip, handLift, SkeletonHandRow);
+                }
 
                 _spriteBatch.Draw(
                     idleTexture,
@@ -4244,6 +4257,7 @@ namespace TileQuest
                 }
                 else
                 {
+                    DrawEnemyHand(1, SkeletonIdleFrontHandCenter, frame, x, y, scale, tint, flip, handLift, SkeletonHandRow);
                     DrawSkeletonWeapon(SkeletonIdleWeaponHand, EnemyCellSize, x, y, scale, tint, flip);
                 }
             }
