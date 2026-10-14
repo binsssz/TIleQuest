@@ -95,6 +95,13 @@ namespace TileQuest
         // Hearth damage itself is unscaled.
         private const int PlayerDamageScale = 1;
         private bool _pendingNightStart;
+        private const float NightTransitionFadeSeconds = 0.8f;
+        private const float NightTransitionHoldSeconds = 0.6f;
+        private NightTransitionPhase _nightTransitionPhase;
+        private NightTransitionKind _nightTransitionKind;
+        private float _nightTransitionAlpha;
+        private float _nightTransitionHoldRemaining;
+        private bool _nightTransitionActionCompleted;
         private string _bannerText = string.Empty;
         private float _bannerRemaining;
         private readonly WaveSpawner _spawner = new();
@@ -150,6 +157,20 @@ namespace TileQuest
         };
         private static readonly int WizardIntroCharacterCount =
             WizardIntroLines.Sum(line => line.Length);
+
+        private enum NightTransitionPhase
+        {
+            None,
+            FadeToBlack,
+            HoldBlack,
+            FadeFromBlack,
+        }
+
+        private enum NightTransitionKind
+        {
+            Nightfall,
+            Dawn,
+        }
 
         private enum InteractableKind
         {
@@ -659,6 +680,65 @@ namespace TileQuest
             _bannerRemaining = BannerSeconds;
         }
 
+        private void BeginNightTransition()
+        {
+            _pendingNightStart = false;
+            _nightTransitionKind = NightTransitionKind.Nightfall;
+            _nightTransitionAlpha = 0f;
+            _nightTransitionHoldRemaining = NightTransitionHoldSeconds;
+            _nightTransitionActionCompleted = false;
+            _nightTransitionPhase = NightTransitionPhase.FadeToBlack;
+        }
+
+        private void BeginDawnTransition()
+        {
+            _nightTransitionKind = NightTransitionKind.Dawn;
+            _nightTransitionAlpha = 0f;
+            _nightTransitionHoldRemaining = NightTransitionHoldSeconds;
+            _nightTransitionActionCompleted = false;
+            _nightTransitionPhase = NightTransitionPhase.FadeToBlack;
+        }
+
+        private void UpdateNightTransition(GameTime gameTime)
+        {
+            float elapsed = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            switch (_nightTransitionPhase)
+            {
+                case NightTransitionPhase.FadeToBlack:
+                    _nightTransitionAlpha = Math.Min(
+                        1f,
+                        _nightTransitionAlpha + elapsed / NightTransitionFadeSeconds);
+                    if (_nightTransitionAlpha >= 1f)
+                    {
+                        _nightTransitionActionCompleted = _nightTransitionKind == NightTransitionKind.Nightfall
+                            ? StartNight()
+                            : CompleteNight();
+                        _nightTransitionPhase = _nightTransitionActionCompleted
+                            ? NightTransitionPhase.HoldBlack
+                            : NightTransitionPhase.FadeFromBlack;
+                    }
+                    break;
+
+                case NightTransitionPhase.HoldBlack:
+                    _nightTransitionHoldRemaining = Math.Max(0f, _nightTransitionHoldRemaining - elapsed);
+                    if (_nightTransitionHoldRemaining <= 0f)
+                    {
+                        _nightTransitionPhase = NightTransitionPhase.FadeFromBlack;
+                    }
+                    break;
+
+                case NightTransitionPhase.FadeFromBlack:
+                    _nightTransitionAlpha = Math.Max(
+                        0f,
+                        _nightTransitionAlpha - elapsed / NightTransitionFadeSeconds);
+                    if (_nightTransitionAlpha <= 0f)
+                    {
+                        _nightTransitionPhase = NightTransitionPhase.None;
+                    }
+                    break;
+            }
+        }
+
         private void OnQuestCompleted(QuestNode quest)
         {
             ShowBanner($"QUEST COMPLETE: {quest.Title.ToUpperInvariant()}");
@@ -666,7 +746,7 @@ namespace TileQuest
 
         // Day -> Night: builds the BFS distance field from the hearth, keeps the
         // entry points that can actually reach it, and queues tonight's wave.
-        private void StartNight()
+        private bool StartNight()
         {
             _pendingNightStart = false;
 
@@ -677,7 +757,7 @@ namespace TileQuest
             if (entries.Length == 0)
             {
                 Console.WriteLine("[Night] WARNING - no village entry point can reach the hearth; night not started.");
-                return;
+                return false;
             }
 
             _hearthPaths = paths;
@@ -690,6 +770,7 @@ namespace TileQuest
             Console.WriteLine(
                 $"[Night] Night {_nightNumber} begins: {_spawner.RemainingInWave} enemies queued, " +
                 $"{entries.Length} entry point(s).");
+            return true;
         }
 
         private void UpdateNight(float deltaSeconds)
@@ -997,6 +1078,11 @@ namespace TileQuest
         // and rocks grow back.
         private void EndNight()
         {
+            BeginDawnTransition();
+        }
+
+        private bool CompleteNight()
+        {
             _gameState = GameState.Day;
             _hearthPaths = null;
             _dayCount++;
@@ -1024,6 +1110,8 @@ namespace TileQuest
             {
                 BeginEnding(EndingKind.Victory, "THE VILLAGE IS SAFE");
             }
+
+            return true;
         }
 
         // The night is lost (hearth destroyed, or the player fell): open the
@@ -1981,6 +2069,14 @@ namespace TileQuest
                 _showHitboxes = !_showHitboxes;
             }
 
+            if (_nightTransitionPhase != NightTransitionPhase.None)
+            {
+                UpdateNightTransition(gameTime);
+                _previousKeyboard = keyboard;
+                base.Update(gameTime);
+                return;
+            }
+
             if (_screen != GameScreen.Playing)
             {
                 // Title / How to Play: menu input only, the world stays frozen.
@@ -2030,7 +2126,7 @@ namespace TileQuest
             {
                 if (WasPressed(keyboard, Keys.Y) || WasPressed(keyboard, Keys.Enter))
                 {
-                    StartNight();
+                    BeginNightTransition();
                 }
                 else if (WasPressed(keyboard, Keys.N) || WasPressed(keyboard, Keys.Escape))
                 {
@@ -2189,6 +2285,7 @@ namespace TileQuest
             {
                 // The village (already drawn above) shows through a dim overlay.
                 DrawMenuScreen(gameTime);
+                DrawNightTransition();
                 base.Draw(gameTime);
                 return;
             }
@@ -2232,6 +2329,8 @@ namespace TileQuest
                 DrawNightPrompt();
             }
 
+            DrawNightTransition();
+
             base.Draw(gameTime);
         }
 
@@ -2270,6 +2369,33 @@ namespace TileQuest
 
             _spriteBatch.Begin(transformMatrix: _camera.GetTransformationMatrix(), samplerState: SamplerState.PointClamp);
             DrawHearthHealthBar();
+            _spriteBatch.End();
+        }
+
+        private void DrawNightTransition()
+        {
+            if (_nightTransitionPhase == NightTransitionPhase.None)
+            {
+                return;
+            }
+
+            float alpha = MathHelper.Clamp(_nightTransitionAlpha, 0f, 1f);
+            Viewport viewport = GraphicsDevice.Viewport;
+            string title = _nightTransitionKind == NightTransitionKind.Nightfall
+                ? $"NIGHT {_nightNumber + (_nightTransitionActionCompleted ? 0 : 1)}"
+                : _allNightsSurvived ? "VICTORY" : $"DAY {_dayCount}";
+            const int titleScale = 4;
+            int titleWidth = title.Length * 6 * titleScale;
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_pixelTexture, viewport.Bounds, Color.Black * alpha);
+            BitmapFont.Draw(
+                _spriteBatch,
+                _pixelTexture,
+                title,
+                new Point((viewport.Width - titleWidth) / 2, viewport.Height / 2 - 28),
+                titleScale,
+                Color.Gold * alpha);
             _spriteBatch.End();
         }
 
