@@ -2269,113 +2269,37 @@ c:\Users\USER\AppData\Local\Temp\TileQuestBuild\bin\Content\Trees\Tree 5.png
 c:\Users\USER\AppData\Local\Temp\TileQuestBuild\bin\Content\Trees\Tree 6.png
 c:\Users\USER\AppData\Local\Temp\TileQuestBuild\bin\Content\Trees\Tree 7.png
 c:\Users\USER\AppData\Local\Temp\TileQuestBuild\bin\Content\Trees\Tree 8.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Bridges\BRIDGE - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Bridges\BRIDGE - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\CHURCH - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\CHURCH.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\HOUSE 1 - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\HOUSE 1.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\HOUSE 2 - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Buildings\HOUSE 2.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Characters\player.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\dungeon.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Idle\Carry_Idle_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Idle\Carry_Idle_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Idle\Carry_Idle_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Run\Carry_Run_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Run\Carry_Run_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Run\Carry_Run_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Walk\Carry_Walk_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Walk\Carry_Walk_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Carry_Walk\Carry_Walk_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Collect_Base\Collect_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Collect_Base\Collect_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Collect_Base\Collect_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Crush_Base\Crush_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Crush_Base\Crush_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Crush_Base\Crush_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Death_Base\Death_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Death_Base\Death_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Death_Base\Death_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Fishing_Base\Fishing_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Fishing_Base\Fishing_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Fishing_Base\Fishing_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Hit_Base\Hit_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Hit_Base\Hit_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Hit_Base\Hit_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Idle_Base\Idle_Down-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Idle_Base\Idle_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Idle_Base\Idle_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Pierce_Base\Pierce_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Pierce_Base\Pierce_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Pierce_Base\Pierce_Top-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Run_Base\Run_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Run_Base\Run_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Run_Base\Run_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Slice_Base\Slice_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Slice_Base\Slice_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Slice_Base\Slice_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Walk_Base\Walk_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Walk_Base\Walk_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Walk_Base\Walk_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Watering_Base\Watering_Down-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Watering_Base\Watering_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Characters\Body_A\Animations\Watering_Base\Watering_Up-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Rogue\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Rogue\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Rogue\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Shaman\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Shaman\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Shaman\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Warrior\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Warrior\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc - Warrior\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc\Idle\Idle-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Orc Crew\Orc\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Base\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Base\Idle\Idle-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Base\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Mage\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Mage\Idle\Idle-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Mage\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Rogue\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Rogue\Idle\Idle-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Rogue\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Warrior\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Warrior\Idle\Idle-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Mobs\Skeleton Crew\Skeleton - Warrior\Run\Run-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Peasant_A\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Peasant_A\Walk\Walk-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_A\Idle\Idle_Side-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_A\Idle_Hold\Idle_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_A\Walk\Walk_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_A\Walk_Hold\Walk_Side-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_B\Idle\Idle_Side-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_B\Idle_Hold\Idle_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_B\Walk\Walk_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Citizen_F\Tavern_B\Walk_Hold\Walk_Side-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Knight\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Knight\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Knight\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Rogue\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Rogue\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Rogue\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Wizzard\Death\Death-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Wizzard\Idle\Idle-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Entities\Npc's\Wizzard\Run\Run-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Animated\Pan_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Animated\Pan_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Animated\Pan_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Animated\Pan_04-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Animated\Pan_05-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Dungeon_Props.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Esoteric.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Farm.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Furniture.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Meat.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\objects.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Pan.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Resources.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Tools.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Trees\Model_01\Size_02.png
@@ -2386,139 +2310,28 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\As
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Trees\Model_03\Size_04-export.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Props\Static\Trees\Model_03\Size_04.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Interior\Interior_Props_01.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Interior\Interior_Walls_01.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Props.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Roofs.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Shadows.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Buildings\Walls.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Alchemy\Alchemy_Table_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Alchemy\Alchemy_Table_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Alchemy\Alchemy_Table_03-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Anvil\Anvil.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Anvil\Anvil_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Anvil\Anvil_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Anvil\Anvil_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_04-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_05-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_06-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_07-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_08-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_09-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Bonfire_10-Sheet.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Fire_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Fire_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Bonfire\Smoke-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Butchery\Butchery_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Butchery\Butchery_02.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Butchery\Butchery_03.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Butchery\Butchery_04.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Cooker\Cooker_01.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Cooker\Cooker_02.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Cooker\Cooker_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Cooker\Cooker_04-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Cooking Station.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Estructure.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Grill\Grill_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Grill\Grill_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Grill\Grill_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Cooking Station\Grill\Grill_04-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Bricks_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Bricks_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Bricks_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Furnace.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Iron_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Iron_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Iron_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Stone_01-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Stone_02-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Furnace\Stone_03-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Sawmill\Base.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Sawmill\Level_1.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Sawmill\Level_2-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Sawmill\Level_3-Sheet.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Structures\Stations\Workbench\Workbench.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Tilesets\Dungeon_Tiles.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Tilesets\Wall_Tiles.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Tilesets\Wall_Variations.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Environment\Tilesets\Water_tiles.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Fences\FENCE 1 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Fences\FENCE 1 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Fences\FENCE 2 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Fences\FENCE 2 - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\forestmap.tmx
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\forest_canopy.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\forest_ground.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Free_Icons_all_16x16.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 1 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 1 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 2 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 2 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 3 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 3 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 4 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 4 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 5 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 5 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 6 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GRASS DETAIL 6 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 1 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 1 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 2 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 2 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 3 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 3 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 4 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 4 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 5 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\GROUND DETAIL 5 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 1 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 1 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 2 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 2 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 3 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 3 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 4 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 4 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 5 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Details\WATER DETAIL 5 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 1 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 1 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 2 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 2 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 3 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 3 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 3 CURVES - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 3 CURVES - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 4 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 4 - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 4 CURVES - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 4 CURVES - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 5 - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Terrain\TERRAIN SET 5 - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\Floors_Tiles.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\GRASS TILE - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\GRASS TILE - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\grass.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\GROUND TILE - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\GROUND TILE - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\plains.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\WATER TILE - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Ground\Tiles\WATER TILE - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Icons\Lamp.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\MockUps\Tavern.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\npc_sprite.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\reference.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Rocks\Rocks.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Shadows\Shadows.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Tilesets\All free tiles.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Traversal\PIT - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Traversal\PIT - NIGHT.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Traversal\STAIRS - DAY.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Traversal\STAIRS - NIGHT.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Trees\Tree 2.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Trees\Tree 3.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Trees\Tree 4.png
@@ -2530,16 +2343,12 @@ C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\As
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\TX Props.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\UI\bar_blue.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\UI\bar_red.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\UI\heart.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\UI\mana.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Vegetation\Vegetation.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\villagefinal2.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\village_ground.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\village_objects_ground_decor.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\village_objects_main.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Weapons\Bone\Bone.png
 C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Weapons\Hands\Hands.png
-C:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\bin\Debug\net8.0\Assets\Weapons\Wood\Wood.png
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\WizardIntroBuild\Assets\Bridges\BRIDGE - DAY.png
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\WizardIntroBuild\Assets\Bridges\BRIDGE - NIGHT.png
 c:\Users\USER\OneDrive - NU Cebu\School\DSA\Finals\TileQuest\obj\WizardIntroBuild\Assets\Buildings\CHURCH - NIGHT.png
