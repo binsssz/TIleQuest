@@ -64,7 +64,7 @@ Victory and Defeat endings are shipped. Do not describe dungeon puzzles, bosses,
 | `InsertionSortUtil.cs` | Generic descending insertion sort |
 | `TileSprites.cs`, `pathcorners.cs`, `Draw*.cs` | Sprite source rectangles and world object rendering |
 
-`ForestTmxMap.cs` and `Assets/forestmap.tmx` are present but are not the active forest renderer or collision source. The live forest uses `ForestGenerator` and the PNG ground/canopy layers.
+`Assets/forestmap.tmx` is not used by the active forest renderer or collision source. The live forest uses `ForestGenerator` and the PNG ground/canopy layers.
 
 ## Technical constraints and conventions
 
